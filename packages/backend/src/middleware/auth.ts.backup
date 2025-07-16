@@ -1,0 +1,220 @@
+import { Request, Response, NextFunction } from 'express';
+import jwt from 'jsonwebtoken';
+import { PrismaClient, UserRole } from '@prisma/client';
+import { createError } from './errorHandler';
+
+const prisma = new PrismaClient();
+
+export interface AuthRequest extends Request {
+  user?: {
+    id: string;
+    email: string;
+    username: string;
+    firstName: string;
+    lastName: string;
+    role: UserRole;
+    status: string;
+  };
+}
+
+export const authMiddleware = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const authHeader = req.headers.authorization;
+    const token = authHeader && authHeader.split(' ')[1]; // Bearer TOKEN
+
+    if (!token) {
+      throw createError('Access token required', 401);
+    }
+
+    const jwtSecret = process.env.JWT_SECRET;
+    if (!jwtSecret) {
+      throw createError('JWT secret not configured', 500);
+    }
+
+    const decoded = jwt.verify(token, jwtSecret) as any;
+
+    // Fetch user from database to ensure they still exist and are active
+    const user = await prisma.user.findUnique({
+      where: { id: decoded.userId },
+      select: {
+        id: true,
+        email: true,
+        username: true,
+        firstName: true,
+        lastName: true,
+        role: true,
+        status: true
+      }
+    });
+
+    if (!user) {
+      throw createError('User not found', 401);
+    }
+
+    if (user.status !== 'ACTIVE') {
+      throw createError('Account is inactive', 401);
+    }
+
+    req.user = user;
+    next();
+  } catch (error) {
+    if (error instanceof jwt.JsonWebTokenError) {
+      next(createError('Invalid token', 401));
+    } else if (error instanceof jwt.TokenExpiredError) {
+      next(createError('Token expired', 401));
+    } else {
+      next(error);
+    }
+  }
+};
+
+export const requireRole = (roles: UserRole[]) => {
+  return (req: AuthRequest, res: Response, next: NextFunction) => {
+    if (!req.user) {
+      return next(createError('Authentication required', 401));
+    }
+
+    if (!roles.includes(req.user.role)) {
+      return next(createError('Insufficient permissions', 403));
+    }
+
+    next();
+  };
+};
+
+export const requireTeacher = requireRole([UserRole.TEACHER, UserRole.ADMIN]);
+export const requireAdmin = requireRole([UserRole.ADMIN]);
+
+export const optionalAuth = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const authHeader = req.headers.authorization;
+    const token = authHeader && authHeader.split(' ')[1];
+
+    if (!token) {
+      return next(); // Continue without authentication
+    }
+
+    const jwtSecret = process.env.JWT_SECRET;
+    if (!jwtSecret) {
+      return next();
+    }
+
+    const decoded = jwt.verify(token, jwtSecret) as any;
+
+    const user = await prisma.user.findUnique({
+      where: { id: decoded.userId },
+      select: {
+        id: true,
+        email: true,
+        username: true,
+        firstName: true,
+        lastName: true,
+        role: true,
+        status: true
+      }
+    });
+
+    if (user && user.status === 'ACTIVE') {
+      req.user = user;
+    }
+
+    next();
+  } catch (error) {
+    // Ignore auth errors for optional auth
+    next();
+  }
+};
+
+export const requireOwnership = (resourceIdParam: string = 'id') => {
+  return async (req: AuthRequest, res: Response, next: NextFunction) => {
+    try {
+      if (!req.user) {
+        return next(createError('Authentication required', 401));
+      }
+
+      // Admin can access everything
+      if (req.user.role === UserRole.ADMIN) {
+        return next();
+      }
+
+      const resourceId = req.params[resourceIdParam];
+      if (!resourceId) {
+        return next(createError('Resource ID required', 400));
+      }
+
+      // This middleware assumes the resource has a creatorId or userId field
+      // You may need to customize this based on your specific resource structure
+      const resource = await prisma.quiz.findUnique({
+        where: { id: resourceId },
+        select: { creatorId: true }
+      });
+
+      if (!resource) {
+        return next(createError('Resource not found', 404));
+      }
+
+      if (resource.creatorId !== req.user.id) {
+        return next(createError('You can only access your own resources', 403));
+      }
+
+      next();
+    } catch (error) {
+      next(error);
+    }
+  };
+};
+
+export const requireClassMembership = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    if (!req.user) {
+      return next(createError('Authentication required', 401));
+    }
+
+    const classId = req.params.classId || req.body.classId;
+    if (!classId) {
+      return next(createError('Class ID required', 400));
+    }
+
+    // Check if user is teacher of the class
+    if (req.user.role === UserRole.TEACHER || req.user.role === UserRole.ADMIN) {
+      const classRecord = await prisma.class.findFirst({
+        where: {
+          id: classId,
+          teacherId: req.user.id
+        }
+      });
+
+      if (classRecord) {
+        return next();
+      }
+    }
+
+    // Check if user is student in the class
+    const membership = await prisma.classStudent.findFirst({
+      where: {
+        classId: classId,
+        studentId: req.user.id
+      }
+    });
+
+    if (!membership) {
+      return next(createError('You are not a member of this class', 403));
+    }
+
+    next();
+  } catch (error) {
+    next(error);
+  }
+}; 

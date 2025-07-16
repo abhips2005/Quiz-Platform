@@ -1,0 +1,1033 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// User Management
+model User {
+  id        String   @id @default(cuid())
+  auth_user_id String @unique  // Supabase auth user ID (replaces firebaseUid)
+  email     String   @unique
+  username  String   @unique
+  firstName String
+  lastName  String
+  role      UserRole @default(STUDENT)
+  status    UserStatus @default(ACTIVE)
+  avatar    String?
+  grade     String?
+  school    String?
+  subjects  String[]
+  emailVerified Boolean @default(false)
+  lastLoginAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relationships
+  profile UserProfile?
+  createdQuizzes Quiz[] @relation("QuizCreator")
+  collaboratedQuizzes Quiz[] @relation("QuizCollaborator")
+  teachingClasses Class[] @relation("ClassTeacher")
+  studentClasses ClassStudent[]
+  hostedGames GameSession[] @relation("GameHost")
+  gameParticipations GamePlayer[]
+  assignments Assignment[] @relation("AssignmentTeacher")
+  submissions AssignmentSubmission[] @relation("SubmissionStudent")
+  sentInvitations GameInvitation[] @relation("InvitationSender")
+  receivedInvitations GameInvitation[] @relation("InvitationRecipient")
+  notifications Notification[]
+  collections QuizCollection[]
+  questionBankItems QuestionBankItem[] @relation("QuestionBankCreator")
+  analytics UserAnalytics?
+  refreshTokens RefreshToken[]
+  auditLogs AuditLog[]
+
+  // Gamification relationships
+  userAvatars UserAvatar[]
+  playerXP PlayerXP?
+  userPowerUps UserPowerUp[]
+  userAchievements UserAchievement[]
+
+  @@map("users")
+}
+
+enum UserRole {
+  STUDENT
+  TEACHER
+  ADMIN
+}
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+}
+
+model UserProfile {
+  id String @id @default(cuid())
+  userId String @unique
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  bio String?
+  dateOfBirth DateTime?
+  country String?
+  timezone String?
+  language String @default("en")
+  theme String @default("light")
+  notificationSettings Json @default("{}")
+  privacySettings Json @default("{}")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("user_profiles")
+}
+
+model RefreshToken {
+  id String @id @default(cuid())
+  token String @unique
+  userId String
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@map("refresh_tokens")
+}
+
+// Schools and Classes
+model School {
+  id String @id @default(cuid())
+  name String
+  domain String?
+  country String?
+  timezone String?
+  logo String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  classes Class[]
+
+  @@map("schools")
+}
+
+model Class {
+  id String @id @default(cuid())
+  name String
+  description String?
+  teacherId String
+  teacher User @relation("ClassTeacher", fields: [teacherId], references: [id], onDelete: Cascade)
+  schoolId String?
+  school School? @relation(fields: [schoolId], references: [id])
+  inviteCode String @unique @default(cuid())
+  isActive Boolean @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  students ClassStudent[]
+  assignments Assignment[]
+  gameInvitations GameInvitation[]
+
+  @@map("classes")
+}
+
+model ClassStudent {
+  id String @id @default(cuid())
+  classId String
+  class Class @relation(fields: [classId], references: [id], onDelete: Cascade)
+  studentId String
+  student User @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  joinedAt DateTime @default(now())
+
+  @@unique([classId, studentId])
+  @@map("class_students")
+}
+
+// Quiz and Question Management
+model Quiz {
+  id String @id @default(cuid())
+  title String
+  description String?
+  coverImageId String?
+  coverImage MediaFile? @relation("QuizCoverImage", fields: [coverImageId], references: [id])
+  creatorId String
+  creator User @relation("QuizCreator", fields: [creatorId], references: [id], onDelete: Cascade)
+  collaborators User[] @relation("QuizCollaborator")
+  visibility QuizVisibility @default(PRIVATE)
+  status QuizStatus @default(DRAFT)
+  subject String?
+  grade String?
+  estimatedTime Int @default(0) // in minutes
+  tags String[]
+  isPublic Boolean @default(false)
+  allowCopyByOthers Boolean @default(false)
+  totalPlays Int @default(0)
+  averageScore Float @default(0)
+  settings Json @default("{}")
+  version Int @default(1)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  questions Question[]
+  gameSessions GameSession[]
+  assignments Assignment[]
+  stats QuizStats?
+  collections QuizCollectionItem[]
+  reports QuizPerformanceReport[]
+
+  @@map("quizzes")
+}
+
+enum QuizVisibility {
+  PUBLIC
+  PRIVATE
+  SCHOOL_ONLY
+  CLASS_ONLY
+}
+
+enum QuizStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+model Question {
+  id String @id @default(cuid())
+  quizId String
+  quiz Quiz @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  type QuestionType
+  question String // Changed from title to question for consistency
+  title String? // Keep for backward compatibility
+  description String?
+  mediaId String?
+  media MediaFile? @relation("QuestionMedia", fields: [mediaId], references: [id])
+  timeLimit Int @default(30) // in seconds
+  points Int @default(10)
+  difficulty DifficultyLevel @default(MEDIUM)
+  tags String[]
+  correctAnswers String[]
+  caseSensitive Boolean @default(false)
+  partialCredit Boolean @default(false)
+  explanation String?
+  hints String[]
+  order Int
+  
+  // New fields for enhanced question support
+  options Json? // For multiple choice and checkbox questions
+  correctAnswer String? // For true/false and fill-in-blank
+  acceptedAnswers String[] @default([]) // For short answer questions
+  
+  // Question Bank relationship
+  questionBankItemId String?
+  questionBankItem QuestionBankItem? @relation("QuestionBankUsage", fields: [questionBankItemId], references: [id])
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  questionOptions QuestionOption[] @relation("QuestionOptions")
+  answers PlayerAnswer[]
+  stats QuestionStats[]
+
+  @@map("questions")
+}
+
+enum QuestionType {
+  MULTIPLE_CHOICE
+  CHECKBOX
+  TRUE_FALSE
+  SHORT_ANSWER
+  FILL_IN_BLANK
+  MATCHING
+  ORDERING
+}
+
+enum DifficultyLevel {
+  EASY
+  MEDIUM
+  HARD
+}
+
+model QuestionOption {
+  id String @id @default(cuid())
+  questionId String
+  question Question @relation("QuestionOptions", fields: [questionId], references: [id], onDelete: Cascade)
+  text String
+  isCorrect Boolean @default(false)
+  explanation String?
+  mediaId String?
+  media MediaFile? @relation("OptionMedia", fields: [mediaId], references: [id])
+  order Int
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("question_options")
+}
+
+model MediaFile {
+  id String @id @default(cuid())
+  type MediaType
+  url String
+  filename String
+  size Int
+  mimeType String
+  duration Int? // for audio/video in seconds
+  width Int?
+  height Int?
+  uploadedBy String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  quizCoverImages Quiz[] @relation("QuizCoverImage")
+  questionMedia Question[] @relation("QuestionMedia")
+  optionMedia QuestionOption[] @relation("OptionMedia")
+
+  @@map("media_files")
+}
+
+enum MediaType {
+  IMAGE
+  AUDIO
+  VIDEO
+}
+
+// Game Sessions and Real-time Gaming
+model GameSession {
+  id String @id @default(cuid())
+  pin String @unique
+  hostId String
+  host User @relation("GameHost", fields: [hostId], references: [id], onDelete: Cascade)
+  quizId String
+  quiz Quiz @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  mode GameMode @default(LIVE)
+  status GameStatus @default(WAITING)
+  maxPlayers Int @default(100)
+  currentQuestionIndex Int @default(0)
+  questionStartTime DateTime?
+  questionEndTime DateTime?
+  settings Json @default("{}")
+  startedAt DateTime?
+  endedAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  players GamePlayer[]
+  answers PlayerAnswer[]
+  results QuestionResult[]
+  analytics GameAnalytics?
+  chatMessages ChatMessage[]
+  invitations GameInvitation[]
+
+  @@map("game_sessions")
+}
+
+enum GameMode {
+  LIVE
+  HOMEWORK
+  PRACTICE
+  TOURNAMENT
+}
+
+enum GameStatus {
+  WAITING
+  STARTING
+  IN_PROGRESS
+  PAUSED
+  FINISHED
+  CANCELLED
+}
+
+model GamePlayer {
+  id String @id @default(cuid())
+  gameId String
+  game GameSession @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  userId String
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  status PlayerStatus @default(JOINED)
+  score Int @default(0)
+  correctAnswers Int @default(0)
+  incorrectAnswers Int @default(0)
+  streak Int @default(0)
+  longestStreak Int @default(0)
+  averageTime Float @default(0)
+  powerUpsUsed String[]
+  powerUpsAvailable String[]
+  position Int @default(0)
+  isBot Boolean @default(false)
+  joinedAt DateTime @default(now())
+  lastSeen DateTime @default(now())
+
+  answers PlayerAnswer[]
+  badges BadgeEarned[]
+  gameReactions GameReaction[]
+
+  @@unique([gameId, userId])
+  @@map("game_players")
+}
+
+enum PlayerStatus {
+  JOINED
+  READY
+  PLAYING
+  FINISHED
+  DISCONNECTED
+  KICKED
+}
+
+model PlayerAnswer {
+  id String @id @default(cuid())
+  playerId String
+  player GamePlayer @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  gameId String
+  game GameSession @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  questionId String
+  question Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  selectedOptions String[]
+  textAnswer String?
+  timeSpent Int // in milliseconds
+  pointsEarned Int @default(0)
+  isCorrect Boolean @default(false)
+  powerUpUsed String?
+  submittedAt DateTime @default(now())
+
+  @@unique([playerId, questionId])
+  @@map("player_answers")
+}
+
+model QuestionResult {
+  id String @id @default(cuid())
+  gameId String
+  game GameSession @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  questionId String
+  totalAnswers Int @default(0)
+  correctCount Int @default(0)
+  incorrectCount Int @default(0)
+  averageTime Float @default(0)
+  fastestTime Int @default(0)
+  slowestTime Int @default(0)
+  statistics Json @default("{}")
+  leaderboard Json @default("[]")
+  createdAt DateTime @default(now())
+
+  @@unique([gameId, questionId])
+  @@map("question_results")
+}
+
+model ChatMessage {
+  id String @id @default(cuid())
+  gameId String
+  game GameSession @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  senderId String
+  senderName String
+  message String
+  type MessageType @default(PLAYER)
+  createdAt DateTime @default(now())
+
+  @@map("chat_messages")
+}
+
+enum MessageType {
+  PLAYER
+  HOST
+  SYSTEM
+}
+
+// Assignments and Homework
+model Assignment {
+  id String @id @default(cuid())
+  title String
+  description String?
+  quizId String
+  quiz Quiz @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  teacherId String
+  teacher User @relation("AssignmentTeacher", fields: [teacherId], references: [id], onDelete: Cascade)
+  classId String?
+  class Class? @relation(fields: [classId], references: [id])
+  studentIds String[]
+  dueDate DateTime?
+  maxAttempts Int @default(1)
+  showCorrectAnswers Boolean @default(true)
+  allowLateSubmission Boolean @default(false)
+  timeLimit Int? // in minutes
+  settings Json @default("{}")
+  isActive Boolean @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  submissions AssignmentSubmission[]
+  invitations GameInvitation[]
+
+  @@map("assignments")
+}
+
+model AssignmentSubmission {
+  id String @id @default(cuid())
+  assignmentId String
+  assignment Assignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  studentId String
+  student User @relation("SubmissionStudent", fields: [studentId], references: [id], onDelete: Cascade)
+  gameSessionId String?
+  score Int @default(0)
+  totalQuestions Int @default(0)
+  correctAnswers Int @default(0)
+  timeSpent Int @default(0) // in minutes
+  attempt Int @default(1)
+  isLate Boolean @default(false)
+  submittedAt DateTime @default(now())
+  gradedAt DateTime?
+  feedback String?
+
+  @@unique([assignmentId, studentId, attempt])
+  @@map("assignment_submissions")
+}
+
+// Invitations and Notifications
+model GameInvitation {
+  id String @id @default(cuid())
+  gameId String?
+  game GameSession? @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  assignmentId String?
+  assignment Assignment? @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  senderId String
+  sender User @relation("InvitationSender", fields: [senderId], references: [id], onDelete: Cascade)
+  recipientId String?
+  recipient User? @relation("InvitationRecipient", fields: [recipientId], references: [id])
+  recipientEmail String?
+  classId String?
+  class Class? @relation(fields: [classId], references: [id])
+  message String?
+  status InvitationStatus @default(PENDING)
+  expiresAt DateTime
+  acceptedAt DateTime?
+  createdAt DateTime @default(now())
+
+  @@map("game_invitations")
+}
+
+enum InvitationStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+  EXPIRED
+}
+
+model Notification {
+  id String @id @default(cuid())
+  userId String
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type NotificationType
+  title String
+  message String
+  data Json?
+  isRead Boolean @default(false)
+  expiresAt DateTime?
+  createdAt DateTime @default(now())
+
+  @@map("notifications")
+}
+
+enum NotificationType {
+  GAME_INVITATION
+  ASSIGNMENT_DUE
+  QUIZ_SHARED
+  ACHIEVEMENT_EARNED
+  GAME_STARTED
+  RESULTS_AVAILABLE
+  SYSTEM_UPDATE
+  WELCOME
+}
+
+// Analytics and Statistics
+model UserAnalytics {
+  id String @id @default(cuid())
+  userId String @unique
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  totalQuizzesPlayed Int @default(0)
+  totalQuizzesCreated Int @default(0)
+  averageScore Float @default(0)
+  totalTimeSpent Int @default(0) // in minutes
+  longestStreak Int @default(0)
+  favoriteSubjects String[]
+  skillLevels Json @default("{}")
+  weeklyActivity Json @default("[]")
+  monthlyProgress Json @default("[]")
+  lastCalculated DateTime @default(now())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("user_analytics")
+}
+
+model QuizStats {
+  id String @id @default(cuid())
+  quizId String @unique
+  quiz Quiz @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  totalAttempts Int @default(0)
+  uniquePlayers Int @default(0)
+  averageScore Float @default(0)
+  averageTime Float @default(0)
+  completionRate Float @default(0)
+  difficulty Float @default(0.5)
+  topPerformers Json @default("[]")
+  lastCalculated DateTime @default(now())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  questionStats QuestionStats[]
+
+  @@map("quiz_stats")
+}
+
+model QuestionStats {
+  id String @id @default(cuid())
+  quizStatsId String
+  quizStats QuizStats @relation(fields: [quizStatsId], references: [id], onDelete: Cascade)
+  questionId String
+  question Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  correctAnswers Int @default(0)
+  incorrectAnswers Int @default(0)
+  skippedAnswers Int @default(0)
+  averageTime Float @default(0)
+  difficulty Float @default(0.5)
+  lastCalculated DateTime @default(now())
+
+  @@unique([quizStatsId, questionId])
+  @@map("question_stats")
+}
+
+model GameAnalytics {
+  id String @id @default(cuid())
+  gameId String @unique
+  game GameSession @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  totalPlayers Int @default(0)
+  completionRate Float @default(0)
+  averageScore Float @default(0)
+  averageTime Float @default(0)
+  questionAnalytics Json @default("[]")
+  playerEngagement Json @default("{}")
+  powerUpUsage Json @default("[]")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("game_analytics")
+}
+
+model QuizPerformanceReport {
+  id String @id @default(cuid())
+  quizId String
+  quiz Quiz @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  generatedFor String // userId
+  reportType String
+  data Json
+  createdAt DateTime @default(now())
+
+  @@map("quiz_performance_reports")
+}
+
+// Gamification
+model Badge {
+  id String @id @default(cuid())
+  name String @unique
+  description String
+  icon String
+  type BadgeType
+  rarity BadgeRarity
+  criteria Json
+  isActive Boolean @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  earned BadgeEarned[]
+
+  @@map("badges")
+}
+
+enum BadgeType {
+  ACHIEVEMENT
+  STREAK
+  SPEED
+  ACCURACY
+  PARTICIPATION
+}
+
+enum BadgeRarity {
+  BRONZE
+  SILVER
+  GOLD
+  PLATINUM
+}
+
+model BadgeEarned {
+  id String @id @default(cuid())
+  badgeId String
+  badge Badge @relation(fields: [badgeId], references: [id], onDelete: Cascade)
+  playerId String
+  player GamePlayer @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  earnedAt DateTime @default(now())
+
+  @@unique([badgeId, playerId])
+  @@map("badges_earned")
+}
+
+// Extended Gamification System
+model Avatar {
+  id String @id @default(cuid())
+  name String @unique
+  imageUrl String
+  category AvatarCategory
+  rarity AvatarRarity
+  unlockCriteria Json
+  cost Int @default(0) // XP cost to unlock
+  isDefault Boolean @default(false)
+  isActive Boolean @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  userAvatars UserAvatar[]
+
+  @@map("avatars")
+}
+
+enum AvatarCategory {
+  CHARACTER
+  ANIMAL
+  FANTASY
+  ROBOT
+  SPORTS
+  ACADEMIC
+}
+
+enum AvatarRarity {
+  COMMON
+  RARE
+  EPIC
+  LEGENDARY
+}
+
+model UserAvatar {
+  id String @id @default(cuid())
+  userId String
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  avatarId String
+  avatar Avatar @relation(fields: [avatarId], references: [id], onDelete: Cascade)
+  isEquipped Boolean @default(false)
+  unlockedAt DateTime @default(now())
+
+  @@unique([userId, avatarId])
+  @@map("user_avatars")
+}
+
+model PlayerXP {
+  id String @id @default(cuid())
+  userId String @unique
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  currentXP Int @default(0)
+  level Int @default(1)
+  totalXPEarned Int @default(0)
+  xpToNextLevel Int @default(100)
+  prestige Int @default(0)
+  weeklyXP Int @default(0)
+  monthlyXP Int @default(0)
+  lastXPGain DateTime?
+  xpMultiplier Float @default(1.0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  xpTransactions XPTransaction[]
+
+  @@map("player_xp")
+}
+
+model XPTransaction {
+  id String @id @default(cuid())
+  userId String
+  user PlayerXP @relation(fields: [userId], references: [userId], onDelete: Cascade)
+  amount Int
+  source XPSource
+  reason String
+  gameId String?
+  createdAt DateTime @default(now())
+
+  @@map("xp_transactions")
+}
+
+enum XPSource {
+  QUIZ_COMPLETION
+  CORRECT_ANSWER
+  SPEED_BONUS
+  STREAK_BONUS
+  DAILY_LOGIN
+  ACHIEVEMENT
+  POWER_UP_USE
+  SOCIAL_INTERACTION
+}
+
+model PowerUp {
+  id String @id @default(cuid())
+  name String @unique
+  description String
+  icon String
+  type PowerUpType
+  rarity PowerUpRarity
+  cost Int @default(0) // XP cost
+  cooldown Int @default(0) // seconds
+  duration Int @default(0) // seconds, 0 for instant
+  effects Json
+  isActive Boolean @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  userPowerUps UserPowerUp[]
+  usageHistory PowerUpUsage[]
+
+  @@map("power_ups")
+}
+
+enum PowerUpType {
+  TIME_BOOST
+  HINT_REVEAL
+  SKIP_QUESTION
+  DOUBLE_POINTS
+  FREEZE_OTHERS
+  EXTRA_LIFE
+  STREAK_SAVER
+  XP_MULTIPLIER
+}
+
+enum PowerUpRarity {
+  COMMON
+  UNCOMMON
+  RARE
+  EPIC
+  LEGENDARY
+}
+
+model UserPowerUp {
+  id String @id @default(cuid())
+  userId String
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  powerUpId String
+  powerUp PowerUp @relation(fields: [powerUpId], references: [id], onDelete: Cascade)
+  quantity Int @default(0)
+  purchasedAt DateTime @default(now())
+
+  @@unique([userId, powerUpId])
+  @@map("user_power_ups")
+}
+
+model PowerUpUsage {
+  id String @id @default(cuid())
+  userId String
+  powerUpId String
+  powerUp PowerUp @relation(fields: [powerUpId], references: [id], onDelete: Cascade)
+  gameId String
+  questionIndex Int?
+  effectApplied Json
+  usedAt DateTime @default(now())
+
+  @@map("power_up_usage")
+}
+
+model Achievement {
+  id String @id @default(cuid())
+  name String @unique
+  description String
+  icon String
+  type AchievementType
+  tier AchievementTier
+  criteria Json
+  xpReward Int @default(0)
+  badgeReward String?
+  powerUpReward String?
+  isHidden Boolean @default(false)
+  isActive Boolean @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  earned UserAchievement[]
+
+  @@map("achievements")
+}
+
+enum AchievementType {
+  ACCURACY
+  SPEED
+  STREAK
+  PARTICIPATION
+  MILESTONE
+  SOCIAL
+  EXPLORATION
+  MASTERY
+}
+
+enum AchievementTier {
+  BRONZE
+  SILVER
+  GOLD
+  PLATINUM
+  DIAMOND
+}
+
+model UserAchievement {
+  id String @id @default(cuid())
+  userId String
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  achievementId String
+  achievement Achievement @relation(fields: [achievementId], references: [id], onDelete: Cascade)
+  progress Int @default(0)
+  maxProgress Int @default(100)
+  isCompleted Boolean @default(false)
+  completedAt DateTime?
+  earnedAt DateTime @default(now())
+
+  @@unique([userId, achievementId])
+  @@map("user_achievements")
+}
+
+model Reaction {
+  id String @id @default(cuid())
+  name String @unique
+  emoji String
+  imageUrl String?
+  soundUrl String?
+  category ReactionCategory
+  unlockLevel Int @default(1)
+  isDefault Boolean @default(false)
+  isActive Boolean @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  gameReactions GameReaction[]
+
+  @@map("reactions")
+}
+
+enum ReactionCategory {
+  CELEBRATION
+  DISAPPOINTMENT
+  SURPRISE
+  THINKING
+  CONFIDENT
+  FUNNY
+}
+
+model GameReaction {
+  id String @id @default(cuid())
+  gameId String
+  playerId String
+  player GamePlayer @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  reactionId String
+  reaction Reaction @relation(fields: [reactionId], references: [id], onDelete: Cascade)
+  questionIndex Int?
+  timestamp DateTime @default(now())
+
+  @@map("game_reactions")
+}
+
+// Collections and Templates
+model QuizCollection {
+  id String @id @default(cuid())
+  name String
+  description String?
+  ownerId String
+  owner User @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  isPublic Boolean @default(false)
+  tags String[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  items QuizCollectionItem[]
+
+  @@map("quiz_collections")
+}
+
+model QuizCollectionItem {
+  id String @id @default(cuid())
+  collectionId String
+  collection QuizCollection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+  quizId String
+  quiz Quiz @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  order Int
+  addedAt DateTime @default(now())
+
+  @@unique([collectionId, quizId])
+  @@map("quiz_collection_items")
+}
+
+model QuizTemplate {
+  id String @id @default(cuid())
+  name String
+  description String
+  category String
+  tags String[]
+  questions Json
+  settings Json
+  isOfficial Boolean @default(false)
+  isActive Boolean @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("quiz_templates")
+}
+
+// System and Audit
+model AuditLog {
+  id String @id @default(cuid())
+  userId String?
+  user User? @relation(fields: [userId], references: [id])
+  action String
+  resource String
+  resourceId String?
+  details Json?
+  ipAddress String?
+  userAgent String?
+  createdAt DateTime @default(now())
+
+  @@map("audit_logs")
+}
+
+model SystemConfiguration {
+  id String @id @default(cuid())
+  key String @unique
+  value Json
+  description String?
+  isPublic Boolean @default(false)
+  updatedAt DateTime @updatedAt
+  createdAt DateTime @default(now())
+
+  @@map("system_configurations")
+}
+
+// Question Bank System
+model QuestionBankItem {
+  id String @id @default(cuid())
+  type QuestionType
+  question String
+  explanation String?
+  points Int @default(1)
+  difficulty DifficultyLevel @default(MEDIUM)
+  category String
+  subject String
+  tags String[]
+  isPublic Boolean @default(false)
+  
+  // Question content based on type
+  options Json? // For multiple choice and checkbox questions
+  correctAnswer String? // For true/false and fill-in-blank
+  acceptedAnswers String[] @default([]) // For short answer questions
+  media Json? // Media files (images, audio, video)
+  
+  // Relationships
+  createdById String
+  createdBy User @relation("QuestionBankCreator", fields: [createdById], references: [id], onDelete: Cascade)
+  
+  // Usage tracking
+  quizQuestions Question[] @relation("QuestionBankUsage")
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("question_bank_items")
+} 

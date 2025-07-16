@@ -1,0 +1,252 @@
+.math-renderer {
+  font-family: 'KaTeX_Main', 'Times New Roman', serif;
+}
+
+.math-renderer.inline {
+  display: inline;
+  vertical-align: baseline;
+}
+
+.math-renderer.block {
+  display: block;
+  text-align: center;
+  margin: 16px 0;
+  padding: 8px 0;
+}
+
+/* Success state styling */
+.math-renderer.math-success {
+  color: inherit;
+}
+
+/* Error state styling */
+.math-renderer.math-error {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 6px;
+  padding: 8px 12px;
+  margin: 4px 0;
+}
+
+.math-error-content {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+.math-error-icon {
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+.math-error-text {
+  font-size: 13px;
+  color: #dc2626;
+  font-weight: 500;
+}
+
+/* Math text container */
+.math-text {
+  line-height: 1.6;
+  word-wrap: break-word;
+}
+
+.math-text .math-renderer.inline {
+  margin: 0 2px;
+}
+
+.math-text .math-renderer.block {
+  margin: 12px 0;
+}
+
+/* KaTeX custom styling overrides */
+.math-renderer .katex {
+  font-size: inherit;
+}
+
+.math-renderer.inline .katex {
+  font-size: 1em;
+}
+
+.math-renderer.block .katex {
+  font-size: 1.1em;
+}
+
+/* Responsive math rendering */
+@media (max-width: 768px) {
+  .math-renderer.block {
+    margin: 12px 0;
+    padding: 6px 0;
+  }
+  
+  .math-renderer.block .katex {
+    font-size: 1em;
+  }
+  
+  .math-error-text {
+    font-size: 12px;
+  }
+  
+  .math-text {
+    line-height: 1.5;
+  }
+}
+
+@media (max-width: 480px) {
+  .math-renderer.block {
+    margin: 10px 0;
+    padding: 4px 0;
+  }
+  
+  .math-renderer.block .katex {
+    font-size: 0.95em;
+  }
+  
+  .math-renderer.inline .katex {
+    font-size: 0.9em;
+  }
+  
+  .math-error-content {
+    gap: 6px;
+  }
+  
+  .math-error-text {
+    font-size: 11px;
+  }
+}
+
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+  .math-renderer.math-error {
+    background: #7f1d1d;
+    border-color: #dc2626;
+  }
+  
+  .math-error-text {
+    color: #fca5a5;
+  }
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+  .math-renderer.math-error {
+    border-width: 2px;
+    font-weight: 600;
+  }
+  
+  .math-error-text {
+    font-weight: 700;
+  }
+}
+
+/* Print styles */
+@media print {
+  .math-renderer.block {
+    margin: 8px 0;
+    break-inside: avoid;
+  }
+  
+  .math-renderer.math-error {
+    border: 2px solid #000;
+    background: #f0f0f0;
+  }
+  
+  .math-error-text {
+    color: #000;
+  }
+}
+
+/* Animation for error state */
+.math-renderer.math-error {
+  animation: slideInError 0.3s ease;
+}
+
+@keyframes slideInError {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Focus styles for accessibility */
+.math-renderer:focus-within {
+  outline: 2px solid #6366f1;
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Selection styles */
+.math-renderer ::selection {
+  background: rgba(99, 102, 241, 0.2);
+}
+
+.math-renderer ::-moz-selection {
+  background: rgba(99, 102, 241, 0.2);
+}
+
+/* LaTeX formula tooltips */
+.math-renderer[title]:hover::after {
+  content: attr(title);
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0, 0, 0, 0.9);
+  color: white;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  white-space: nowrap;
+  z-index: 1000;
+  pointer-events: none;
+  font-family: 'Courier New', monospace;
+}
+
+.math-renderer[title]:hover {
+  position: relative;
+}
+
+/* Smooth rendering transitions */
+.math-renderer {
+  transition: all 0.2s ease;
+}
+
+.math-renderer.math-success {
+  opacity: 1;
+}
+
+.math-renderer.math-error {
+  opacity: 0.95;
+}
+
+/* Better spacing in different contexts */
+.quiz-question .math-renderer.block {
+  margin: 8px 0;
+}
+
+.quiz-option .math-renderer.inline {
+  margin: 0 1px;
+}
+
+.answer-feedback .math-renderer {
+  color: inherit;
+}
+
+/* Loading state (optional) */
+.math-renderer.loading {
+  background: linear-gradient(90deg, #f0f0f0 25%, transparent 37%, #f0f0f0 63%);
+  background-size: 400% 100%;
+  animation: shimmer 1.5s infinite;
+  min-height: 20px;
+  border-radius: 4px;
+}
+
+@keyframes shimmer {
+  0% { background-position: 100% 50%; }
+  100% { background-position: -100% 50%; }
+} 

@@ -1,0 +1,420 @@
+import { Router } from 'express';
+import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
+import { z } from 'zod';
+import { PrismaClient, UserRole } from '@prisma/client';
+import { validateBody } from '../middleware/validation';
+import { authMiddleware, AuthRequest } from '../middleware/auth';
+import { asyncHandler, createError } from '../middleware/errorHandler';
+
+const router = Router();
+const prisma = new PrismaClient();
+
+// Validation schemas
+const registerSchema = z.object({
+  email: z.string().email('Invalid email format'),
+  password: z.string().min(6, 'Password must be at least 6 characters'),
+  firstName: z.string().min(1, 'First name is required'),
+  lastName: z.string().min(1, 'Last name is required'),
+  username: z.string().min(3, 'Username must be at least 3 characters'),
+  role: z.enum(['STUDENT', 'TEACHER']).default('STUDENT'),
+  grade: z.string().optional(),
+  school: z.string().optional()
+});
+
+const loginSchema = z.object({
+  email: z.string().email('Invalid email format'),
+  password: z.string().min(1, 'Password is required')
+});
+
+const refreshTokenSchema = z.object({
+  refreshToken: z.string().min(1, 'Refresh token is required')
+});
+
+// Helper functions
+const generateTokens = (userId: string) => {
+  const jwtSecret = process.env.JWT_SECRET;
+  const refreshSecret = process.env.REFRESH_TOKEN_SECRET;
+  
+  if (!jwtSecret || !refreshSecret) {
+    throw createError('JWT secrets not configured', 500);
+  }
+
+  const accessToken = jwt.sign(
+    { userId },
+    jwtSecret,
+    { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
+  );
+
+  const refreshToken = jwt.sign(
+    { userId },
+    refreshSecret,
+    { expiresIn: process.env.REFRESH_TOKEN_EXPIRES_IN || '30d' }
+  );
+
+  return { accessToken, refreshToken };
+};
+
+const excludePassword = {
+  id: true,
+  email: true,
+  username: true,
+  firstName: true,
+  lastName: true,
+  role: true,
+  status: true,
+  avatar: true,
+  grade: true,
+  school: true,
+  subjects: true,
+  emailVerified: true,
+  createdAt: true,
+  updatedAt: true
+};
+
+// Register
+router.post('/register', validateBody(registerSchema), asyncHandler(async (req, res) => {
+  const { email, password, firstName, lastName, username, role, grade, school } = req.body;
+
+  // Check if user already exists
+  const existingUser = await prisma.user.findFirst({
+    where: {
+      OR: [
+        { email },
+        { username }
+      ]
+    }
+  });
+
+  if (existingUser) {
+    if (existingUser.email === email) {
+      throw createError('Email already registered', 409);
+    }
+    if (existingUser.username === username) {
+      throw createError('Username already taken', 409);
+    }
+  }
+
+  // Hash password
+  const hashedPassword = await bcrypt.hash(password, 12);
+
+  // Create user
+  const user = await prisma.user.create({
+    data: {
+      email,
+      password: hashedPassword,
+      firstName,
+      lastName,
+      username,
+      role: role as UserRole,
+      grade,
+      school,
+      profile: {
+        create: {
+          // Create default profile
+        }
+      }
+    },
+    select: excludePassword
+  });
+
+  // Generate tokens
+  const { accessToken, refreshToken } = generateTokens(user.id);
+
+  // Store refresh token
+  await prisma.refreshToken.create({
+    data: {
+      token: refreshToken,
+      userId: user.id,
+      expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) // 30 days
+    }
+  });
+
+  // Create welcome notification
+  await prisma.notification.create({
+    data: {
+      userId: user.id,
+      type: 'WELCOME',
+      title: 'Welcome to Quizzz Platform!',
+      message: `Welcome ${firstName}! Start creating and playing quizzes to enhance your learning experience.`
+    }
+  });
+
+  res.status(201).json({
+    success: true,
+    message: 'User registered successfully',
+    data: {
+      user,
+      tokens: {
+        accessToken,
+        refreshToken,
+        expiresIn: 7 * 24 * 60 * 60 // 7 days in seconds
+      }
+    },
+    timestamp: new Date()
+  });
+}));
+
+// Login
+router.post('/login', validateBody(loginSchema), asyncHandler(async (req, res) => {
+  const { email, password } = req.body;
+
+  // Find user
+  const user = await prisma.user.findUnique({
+    where: { email },
+    select: {
+      id: true,
+      email: true,
+      username: true,
+      firstName: true,
+      lastName: true,
+      role: true,
+      status: true,
+      avatar: true,
+      grade: true,
+      school: true,
+      subjects: true,
+      emailVerified: true,
+      password: true,
+      createdAt: true,
+      updatedAt: true
+    }
+  });
+
+  if (!user) {
+    throw createError('Invalid email or password', 401);
+  }
+
+  if (user.status !== 'ACTIVE') {
+    throw createError('Account is inactive', 401);
+  }
+
+  // Check password
+  const isPasswordValid = await bcrypt.compare(password, user.password);
+  if (!isPasswordValid) {
+    throw createError('Invalid email or password', 401);
+  }
+
+  // Remove password from response
+  const { password: _, ...userWithoutPassword } = user;
+
+  // Generate tokens
+  const { accessToken, refreshToken } = generateTokens(user.id);
+
+  // Store refresh token
+  await prisma.refreshToken.create({
+    data: {
+      token: refreshToken,
+      userId: user.id,
+      expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) // 30 days
+    }
+  });
+
+  // Update last login
+  await prisma.user.update({
+    where: { id: user.id },
+    data: { lastLoginAt: new Date() }
+  });
+
+  res.json({
+    success: true,
+    message: 'Login successful',
+    data: {
+      user: userWithoutPassword,
+      tokens: {
+        accessToken,
+        refreshToken,
+        expiresIn: 7 * 24 * 60 * 60 // 7 days in seconds
+      }
+    },
+    timestamp: new Date()
+  });
+}));
+
+// Refresh Token
+router.post('/refresh', validateBody(refreshTokenSchema), asyncHandler(async (req, res) => {
+  const { refreshToken } = req.body;
+
+  const refreshSecret = process.env.REFRESH_TOKEN_SECRET;
+  if (!refreshSecret) {
+    throw createError('Refresh token secret not configured', 500);
+  }
+
+  // Verify refresh token
+  let decoded;
+  try {
+    decoded = jwt.verify(refreshToken, refreshSecret) as any;
+  } catch (error) {
+    throw createError('Invalid refresh token', 401);
+  }
+
+  // Check if refresh token exists in database
+  const storedToken = await prisma.refreshToken.findUnique({
+    where: { token: refreshToken },
+    include: { user: { select: excludePassword } }
+  });
+
+  if (!storedToken || storedToken.expiresAt < new Date()) {
+    throw createError('Refresh token expired or invalid', 401);
+  }
+
+  if (storedToken.user.status !== 'ACTIVE') {
+    throw createError('Account is inactive', 401);
+  }
+
+  // Generate new tokens
+  const { accessToken, refreshToken: newRefreshToken } = generateTokens(storedToken.userId);
+
+  // Delete old refresh token and create new one
+  await prisma.refreshToken.delete({
+    where: { token: refreshToken }
+  });
+
+  await prisma.refreshToken.create({
+    data: {
+      token: newRefreshToken,
+      userId: storedToken.userId,
+      expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) // 30 days
+    }
+  });
+
+  res.json({
+    success: true,
+    message: 'Tokens refreshed successfully',
+    data: {
+      user: storedToken.user,
+      tokens: {
+        accessToken,
+        refreshToken: newRefreshToken,
+        expiresIn: 7 * 24 * 60 * 60 // 7 days in seconds
+      }
+    },
+    timestamp: new Date()
+  });
+}));
+
+// Logout
+router.post('/logout', authMiddleware, asyncHandler(async (req: AuthRequest, res) => {
+  const refreshToken = req.body.refreshToken;
+
+  if (refreshToken) {
+    // Delete specific refresh token
+    await prisma.refreshToken.deleteMany({
+      where: {
+        token: refreshToken,
+        userId: req.user!.id
+      }
+    });
+  } else {
+    // Delete all refresh tokens for user (logout from all devices)
+    await prisma.refreshToken.deleteMany({
+      where: { userId: req.user!.id }
+    });
+  }
+
+  res.json({
+    success: true,
+    message: 'Logged out successfully',
+    timestamp: new Date()
+  });
+}));
+
+// Get Current User
+router.get('/me', authMiddleware, asyncHandler(async (req: AuthRequest, res) => {
+  const user = await prisma.user.findUnique({
+    where: { id: req.user!.id },
+    select: excludePassword
+  });
+
+  if (!user) {
+    throw createError('User not found', 404);
+  }
+
+  res.json({
+    success: true,
+    data: { user },
+    timestamp: new Date()
+  });
+}));
+
+// Update Profile
+const updateProfileSchema = z.object({
+  firstName: z.string().optional(),
+  lastName: z.string().optional(),
+  avatar: z.string().optional(),
+  grade: z.string().optional(),
+  school: z.string().optional(),
+  subjects: z.array(z.string()).optional()
+});
+
+router.put('/profile', authMiddleware, validateBody(updateProfileSchema), asyncHandler(async (req: AuthRequest, res) => {
+  const { firstName, lastName, avatar, grade, school, subjects } = req.body;
+
+  const user = await prisma.user.update({
+    where: { id: req.user!.id },
+    data: {
+      ...(firstName && { firstName }),
+      ...(lastName && { lastName }),
+      ...(avatar && { avatar }),
+      ...(grade && { grade }),
+      ...(school && { school }),
+      ...(subjects && { subjects })
+    },
+    select: excludePassword
+  });
+
+  res.json({
+    success: true,
+    message: 'Profile updated successfully',
+    data: { user },
+    timestamp: new Date()
+  });
+}));
+
+// Change Password
+const changePasswordSchema = z.object({
+  currentPassword: z.string().min(1, 'Current password is required'),
+  newPassword: z.string().min(6, 'New password must be at least 6 characters')
+});
+
+router.put('/change-password', authMiddleware, validateBody(changePasswordSchema), asyncHandler(async (req: AuthRequest, res) => {
+  const { currentPassword, newPassword } = req.body;
+
+  // Get user with password
+  const user = await prisma.user.findUnique({
+    where: { id: req.user!.id },
+    select: { password: true }
+  });
+
+  if (!user) {
+    throw createError('User not found', 404);
+  }
+
+  // Verify current password
+  const isCurrentPasswordValid = await bcrypt.compare(currentPassword, user.password);
+  if (!isCurrentPasswordValid) {
+    throw createError('Current password is incorrect', 400);
+  }
+
+  // Hash new password
+  const hashedNewPassword = await bcrypt.hash(newPassword, 12);
+
+  // Update password
+  await prisma.user.update({
+    where: { id: req.user!.id },
+    data: { password: hashedNewPassword }
+  });
+
+  // Invalidate all refresh tokens to force re-login
+  await prisma.refreshToken.deleteMany({
+    where: { userId: req.user!.id }
+  });
+
+  res.json({
+    success: true,
+    message: 'Password changed successfully. Please log in again.',
+    timestamp: new Date()
+  });
+}));
+
+export default router; 
