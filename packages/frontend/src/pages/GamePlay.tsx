@@ -15,6 +15,7 @@ import { MathRenderer } from '../components/MathRenderer/MathRenderer';
 import { MediaDisplay } from '../components/MediaDisplay/MediaDisplay';
 import toast from 'react-hot-toast';
 import './GamePlay.css';
+import { useAuth } from '../contexts/SupabaseAuthContext';
 
 interface QuestionOption {
   id: string;
@@ -80,6 +81,7 @@ interface AnswerResult {
 const GamePlay: React.FC = () => {
   const { gameId } = useParams<{ gameId: string }>();
   const navigate = useNavigate();
+  const { getAccessToken } = useAuth();
   const [socket, setSocket] = useState<Socket | null>(null);
   const [gameState, setGameState] = useState<GameState | null>(null);
   const [playerStats, setPlayerStats] = useState<PlayerStats>({
@@ -116,7 +118,12 @@ const GamePlay: React.FC = () => {
       return;
     }
 
-    initializeSocket(sessionData);
+    // Initialize socket with proper async handling
+    const setupSocket = async () => {
+      await initializeSocket(sessionData);
+    };
+    
+    setupSocket();
 
     return () => {
       if (socket) {
@@ -125,23 +132,39 @@ const GamePlay: React.FC = () => {
     };
   }, [gameId, navigate]);
 
-  const initializeSocket = (sessionData: any) => {
+  const initializeSocket = async (sessionData: any) => {
+    // Get proper JWT token for authentication
+    const token = await getAccessToken();
+    if (!token) {
+      toast.error('Authentication required');
+      navigate('/login');
+      return;
+    }
+    
     // Connect to backend WebSocket server
-    const newSocket = io('http://localhost:5000', {
-      auth: {
-        token: sessionData.playerId
-      }
+    const wsUrl = import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:5000';
+    const newSocket = io(wsUrl, {
+      auth: { token }
     });
 
     newSocket.on('connect', () => {
       setConnectionStatus('connected');
-      // Join the game room
-      newSocket.emit('join_game', { gameId: sessionData.gameId });
+      // Join the game room with proper game data
+      newSocket.emit('join_game', { 
+        gameId: sessionData.gameId,
+        pin: sessionData.pin
+      });
     });
 
     newSocket.on('disconnect', () => {
       setConnectionStatus('disconnected');
       toast.error('Connection lost. Trying to reconnect...');
+    });
+
+    newSocket.on('game_joined', (gameState: any) => {
+      console.log('Game joined successfully:', gameState);
+      setGameState(gameState);
+      setIsLoading(false);
     });
 
     newSocket.on('game_event', handleGameEvent);

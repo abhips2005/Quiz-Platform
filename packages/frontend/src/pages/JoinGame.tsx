@@ -1,11 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { toast } from 'react-hot-toast';
+import { io, Socket } from 'socket.io-client';
+import { useAuth } from '../contexts/SupabaseAuthContext';
 import {
   UserIcon,
   HashtagIcon,
   PlayIcon,
-  ArrowRightIcon,
   SparklesIcon
 } from '@heroicons/react/24/outline';
 import './JoinGame.css';
@@ -32,15 +33,24 @@ interface GameInfo {
 const JoinGame: React.FC = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const { user, getAccessToken, isInitialized } = useAuth();
   const pinFromUrl = searchParams.get('pin') || '';
 
   const [formData, setFormData] = useState<JoinFormData>({
     pin: pinFromUrl,
-    playerName: ''
+    playerName: user?.firstName || ''
   });
   const [loading, setLoading] = useState(false);
   const [gameInfo, setGameInfo] = useState<GameInfo | null>(null);
-  const [step, setStep] = useState<'enter-pin' | 'enter-name' | 'waiting'>('enter-pin');
+  const [step, setStep] = useState<'enter-details' | 'waiting'>('enter-details');
+
+  // Redirect to login if not authenticated
+  useEffect(() => {
+    if (isInitialized && !user) {
+      const currentUrl = `/join${pinFromUrl ? `?pin=${pinFromUrl}` : ''}`;
+      navigate(`/login?redirect=${encodeURIComponent(currentUrl)}`);
+    }
+  }, [isInitialized, user, navigate, pinFromUrl]);
 
   const handleInputChange = (field: keyof JoinFormData, value: string) => {
     setFormData(prev => ({
@@ -57,7 +67,7 @@ const JoinGame: React.FC = () => {
     return name.trim().length >= 2 && name.trim().length <= 50;
   };
 
-  const handlePinSubmit = async (e: React.FormEvent) => {
+  const handleJoinSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!validatePin(formData.pin)) {
@@ -65,108 +75,121 @@ const JoinGame: React.FC = () => {
       return;
     }
 
-    setLoading(true);
-    try {
-      // First, just validate the PIN exists by attempting to join with a temporary name
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/game-host/join`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          pin: formData.pin,
-          playerName: `temp_${Date.now()}` // Temporary name to validate PIN
-        })
-      });
-
-      if (response.ok) {
-        // PIN is valid, move to name entry step
-        setStep('enter-name');
-        toast.success('Game found! Enter your name to join.');
-      } else {
-        const errorData = await response.json();
-        if (response.status === 404) {
-          toast.error('Game not found. Please check the PIN and try again.');
-        } else if (response.status === 400) {
-          if (errorData.error.includes('full')) {
-            toast.error('This game is full. Please try again later.');
-          } else {
-            toast.error(errorData.error);
-          }
-        } else {
-          toast.error('Failed to find game. Please try again.');
-        }
-      }
-    } catch (error) {
-      console.error('Pin validation error:', error);
-      toast.error('Connection error. Please check your internet and try again.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleJoinGame = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
     if (!validatePlayerName(formData.playerName)) {
       toast.error('Player name must be 2-50 characters long');
       return;
     }
 
+    if (!user) {
+      toast.error('Please log in to join games');
+      navigate('/login');
+      return;
+    }
+
     setLoading(true);
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/game-host/join`, {
+      // Get auth token
+      const token = await getAccessToken();
+      if (!token) {
+        toast.error('Authentication required');
+        navigate('/login');
+        return;
+      }
+
+      // Join the game directly
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/games/join`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({
           pin: formData.pin,
-          playerName: formData.playerName.trim()
+          username: formData.playerName.trim()
         })
       });
 
       if (response.ok) {
-        const data: GameInfo = await response.json();
-        setGameInfo(data);
-        setStep('waiting');
+        const responseData = await response.json();
+        const gameData = responseData.data.game;
         
-        // Store player info in localStorage for the game session
-        localStorage.setItem('gameSession', JSON.stringify({
-          playerId: data.playerId,
-          gameId: data.gameId,
-          playerName: data.playerName,
-          pin: formData.pin
-        }));
+        // Connect to WebSocket and actually join the game
+        const wsUrl = import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:5000';
+        const socket = io(wsUrl, {
+          auth: { token }
+        });
+        
+        socket.on('connect', () => {
+          socket.emit('join_game', {
+            gameId: gameData.id,
+            pin: formData.pin
+          });
+        });
 
-        toast.success(`Welcome ${data.playerName}! Joined successfully.`);
+        socket.on('game_joined', (gameState: any) => {
+          console.log('Game joined successfully:', gameState);
+          
+          const currentPlayer = gameState.players?.find((p: any) => p.userId === user.id) || 
+                              gameState.players?.[gameState.players.length - 1];
+          
+          const gameInfo: GameInfo = {
+            playerId: currentPlayer?.id || 'temp',
+            gameId: gameState.id,
+            playerName: formData.playerName,
+            quiz: gameState.quiz,
+            gameMode: 'LIVE',
+            gameStatus: gameState.status,
+            playerCount: gameState.players?.length || 0
+          };
+          
+          setGameInfo(gameInfo);
+          setStep('waiting');
+          
+          localStorage.setItem('gameSession', JSON.stringify({
+            playerId: currentPlayer?.id,
+            gameId: gameState.id,
+            playerName: formData.playerName,
+            pin: formData.pin
+          }));
 
-        // If game is already in progress, navigate to game play
-        if (data.gameStatus === 'IN_PROGRESS') {
-          navigate(`/game/${data.gameId}/play`);
-        }
+          toast.success(`Welcome ${formData.playerName}! Joined successfully.`);
+
+          if (gameState.status === 'IN_PROGRESS') {
+            navigate(`/game/${gameState.id}/play`);
+          }
+          
+          socket.disconnect();
+        });
+
+        socket.on('error', (error: any) => {
+          toast.error(error.message || 'Failed to join game');
+          setLoading(false);
+          socket.disconnect();
+        });
       } else {
         const errorData = await response.json();
-        if (errorData.error.includes('name already taken')) {
-          toast.error('This name is already taken. Please choose a different name.');
-        } else if (errorData.error.includes('full')) {
-          toast.error('This game is full. Please try again later.');
-        } else {
+        if (response.status === 404) {
+          toast.error('Game not found. Please check the PIN and try again.');
+        } else if (response.status === 400) {
           toast.error(errorData.error || 'Failed to join game');
+        } else {
+          toast.error('Failed to join game. Please try again.');
         }
+        setLoading(false);
       }
     } catch (error) {
       console.error('Join game error:', error);
       toast.error('Connection error. Please try again.');
-    } finally {
       setLoading(false);
     }
   };
 
+
+
   const resetForm = () => {
-    setFormData({ pin: '', playerName: '' });
+    setFormData({ pin: '', playerName: user?.firstName || '' });
     setGameInfo(null);
-    setStep('enter-pin');
+    setStep('enter-details');
   };
 
   const getGameModeDisplay = (mode: string) => {
@@ -213,9 +236,9 @@ const JoinGame: React.FC = () => {
           <p>Enter your game PIN to start playing!</p>
         </div>
 
-        {step === 'enter-pin' && (
+        {step === 'enter-details' && (
           <div className="join-form-section">
-            <form onSubmit={handlePinSubmit} className="join-form">
+            <form onSubmit={handleJoinSubmit} className="join-form">
               <div className="form-group">
                 <label htmlFor="pin">Game PIN</label>
                 <div className="pin-input-container">
@@ -238,37 +261,6 @@ const JoinGame: React.FC = () => {
                 <p className="form-hint">Enter the 6-digit PIN from your teacher</p>
               </div>
 
-              <button
-                type="submit"
-                disabled={!validatePin(formData.pin) || loading}
-                className="submit-btn primary"
-              >
-                {loading ? (
-                  <div className="loading-content">
-                    <div className="spinner"></div>
-                    <span>Finding Game...</span>
-                  </div>
-                ) : (
-                  <div className="button-content">
-                    <span>Find Game</span>
-                    <ArrowRightIcon className="button-icon" />
-                  </div>
-                )}
-              </button>
-            </form>
-          </div>
-        )}
-
-        {step === 'enter-name' && (
-          <div className="join-form-section">
-            <div className="step-indicator">
-              <div className="step-info">
-                <span className="step-number">Step 2 of 2</span>
-                <h3>Choose Your Name</h3>
-              </div>
-            </div>
-
-            <form onSubmit={handleJoinGame} className="join-form">
               <div className="form-group">
                 <label htmlFor="playerName">Your Name</label>
                 <div className="name-input-container">
@@ -282,39 +274,28 @@ const JoinGame: React.FC = () => {
                     maxLength={50}
                     className="name-input"
                     autoComplete="off"
-                    autoFocus
                   />
                 </div>
                 <p className="form-hint">This name will be visible to other players</p>
               </div>
 
-              <div className="form-actions">
-                <button
-                  type="button"
-                  onClick={resetForm}
-                  className="submit-btn secondary"
-                >
-                  Back to PIN
-                </button>
-                
-                <button
-                  type="submit"
-                  disabled={!validatePlayerName(formData.playerName) || loading}
-                  className="submit-btn primary"
-                >
-                  {loading ? (
-                    <div className="loading-content">
-                      <div className="spinner"></div>
-                      <span>Joining...</span>
-                    </div>
-                  ) : (
-                    <div className="button-content">
-                      <span>Join Game</span>
-                      <PlayIcon className="button-icon" />
-                    </div>
-                  )}
-                </button>
-              </div>
+              <button
+                type="submit"
+                disabled={!validatePin(formData.pin) || !validatePlayerName(formData.playerName) || loading}
+                className="submit-btn primary"
+              >
+                {loading ? (
+                  <div className="loading-content">
+                    <div className="spinner"></div>
+                    <span>Joining Game...</span>
+                  </div>
+                ) : (
+                  <div className="button-content">
+                    <span>Join Game</span>
+                    <PlayIcon className="button-icon" />
+                  </div>
+                )}
+              </button>
             </form>
           </div>
         )}

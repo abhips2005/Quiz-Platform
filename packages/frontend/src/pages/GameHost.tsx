@@ -93,13 +93,14 @@ const GameHost: React.FC = () => {
 
       if (response.ok) {
         const data = await response.json();
-        setQuizzes(data.data || []);
+        setQuizzes(data.data?.quizzes || []);
       } else {
         throw new Error('Failed to load quizzes');
       }
     } catch (error) {
       console.error('Load quizzes error:', error);
       toast.error('Failed to load quizzes');
+      setQuizzes([]); // Ensure quizzes is always an array
     }
   };
 
@@ -381,23 +382,29 @@ const GameHost: React.FC = () => {
                 </div>
               ) : (
                 <div className="quiz-grid">
-                  {quizzes.map((quiz) => (
-                    <div
-                      key={quiz.id}
-                      className={`quiz-card ${selectedQuiz === quiz.id ? 'selected' : ''}`}
-                      onClick={() => setSelectedQuiz(quiz.id)}
-                    >
-                      <div className="quiz-card-header">
-                        <h4>{quiz.title}</h4>
-                        <span className="question-count">{quiz.questionCount} questions</span>
+                  {Array.isArray(quizzes) && quizzes.length > 0 ? (
+                    quizzes.map((quiz) => (
+                      <div
+                        key={quiz.id}
+                        className={`quiz-card ${selectedQuiz === quiz.id ? 'selected' : ''}`}
+                        onClick={() => setSelectedQuiz(quiz.id)}
+                      >
+                        <div className="quiz-card-header">
+                          <h4>{quiz.title}</h4>
+                          <span className="question-count">{quiz.questionCount} questions</span>
+                        </div>
+                        <p className="quiz-description">{quiz.description}</p>
+                        <div className="quiz-meta">
+                          <span className="difficulty">{quiz.difficulty || 'N/A'}</span>
+                          <span className="subject">{quiz.subject || 'N/A'}</span>
+                        </div>
                       </div>
-                      <p className="quiz-description">{quiz.description}</p>
-                      <div className="quiz-meta">
-                        <span className="difficulty">{quiz.difficulty}</span>
-                        <span className="subject">{quiz.subject}</span>
-                      </div>
+                    ))
+                  ) : (
+                    <div className="no-quizzes">
+                      <p>No published quizzes available. Create and publish a quiz first.</p>
                     </div>
-                  ))}
+                  )}
                 </div>
               )}
             </div>

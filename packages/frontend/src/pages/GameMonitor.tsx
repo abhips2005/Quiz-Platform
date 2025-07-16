@@ -128,7 +128,8 @@ const GameMonitor: React.FC = () => {
     }
     
     // Connect to backend WebSocket server
-    const newSocket = io('http://localhost:5000', {
+    const wsUrl = import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:5000';
+    const newSocket = io(wsUrl, {
       auth: { token }
     });
 
@@ -136,6 +137,7 @@ const GameMonitor: React.FC = () => {
       newSocket.emit('join_game_monitor', { gameId });
     });
 
+    newSocket.on('monitor_joined', handleMonitorJoined);
     newSocket.on('game_event', handleGameEvent);
     newSocket.on('player_update', handlePlayerUpdate);
     newSocket.on('question_update', handleQuestionUpdate);
@@ -162,16 +164,19 @@ const GameMonitor: React.FC = () => {
       });
 
       if (response.ok) {
-        const data = await response.json();
-        setGamePin(data.pin);
+        const response_data = await response.json();
+        const game = response_data.data.game;
+        console.log('Game data received:', game); // Debug log
+        
+        setGamePin(game.pin || '');
         setGameStats(prev => ({
           ...prev,
-          totalPlayers: data.players?.length || 0,
-          currentQuestion: data.currentQuestionIndex + 1,
-          totalQuestions: data.quiz?.questions?.length || 0,
-          gameStatus: data.status
+          totalPlayers: game.players?.length || 0,
+          currentQuestion: (game.currentQuestionIndex || 0) + 1,
+          totalQuestions: game.quiz?.questions?.length || 0,
+          gameStatus: game.status || 'WAITING'
         }));
-        setPlayers(data.players || []);
+        setPlayers(game.players || []);
       } else {
         toast.error('Failed to load game data');
         navigate('/game/host');
@@ -184,6 +189,21 @@ const GameMonitor: React.FC = () => {
     }
   };
 
+  const handleMonitorJoined = (gameState: any) => {
+    console.log('Monitor joined, received game state:', gameState);
+    
+    setGamePin(gameState.pin || '');
+    setGameStats(prev => ({
+      ...prev,
+      totalPlayers: gameState.players?.length || 0,
+      currentQuestion: (gameState.currentQuestionIndex || 0) + 1,
+      totalQuestions: gameState.totalQuestions || 0,
+      gameStatus: gameState.status || 'WAITING'
+    }));
+    setPlayers(gameState.players || []);
+    setIsLoading(false);
+  };
+
   const handleGameEvent = (event: any) => {
     switch (event.type) {
       case 'PLAYER_JOINED':
@@ -191,7 +211,10 @@ const GameMonitor: React.FC = () => {
         if (soundEnabled) {
           playNotificationSound('join');
         }
-        toast.success(`${event.data.playerName} joined the game`);
+        const playerName = event.data.player?.firstName || event.data.player?.username || 'Player';
+        toast.success(`${playerName} joined the game`);
+        // Update players list
+        setPlayers(prev => [...prev, event.data.player]);
         break;
 
       case 'PLAYER_LEFT':
@@ -211,6 +234,11 @@ const GameMonitor: React.FC = () => {
       case 'ANSWER_SUBMITTED':
         setGameStats(prev => ({ ...prev, activeAnswers: prev.activeAnswers + 1 }));
         updatePlayerAnswer(event.data);
+        break;
+
+      case 'GAME_STARTED':
+        setGameStats(prev => ({ ...prev, gameStatus: 'IN_PROGRESS' }));
+        toast.success('Game started!');
         break;
 
       case 'QUESTION_ENDED':
@@ -305,6 +333,17 @@ const GameMonitor: React.FC = () => {
     oscillator.stop(context.currentTime + 0.3);
   };
 
+  const startGame = async () => {
+    if (!socket) return;
+
+    try {
+      socket.emit('start_game', { gameId });
+      toast.success('Game started!');
+    } catch (error) {
+      toast.error('Failed to start game');
+    }
+  };
+
   const controlGame = async (action: 'pause' | 'resume' | 'end' | 'next') => {
     if (!socket) return;
 
@@ -392,10 +431,21 @@ const GameMonitor: React.FC = () => {
             className="game-controls"
           >
             <div className="controls-grid">
+              {gameStats.gameStatus === 'WAITING' && (
+                <button
+                  onClick={startGame}
+                  className="control-button success"
+                  disabled={gameStats.totalPlayers === 0}
+                  title={gameStats.totalPlayers === 0 ? 'Need at least one player to start' : 'Start the game'}
+                >
+                  <PlayIcon />
+                  Start Game
+                </button>
+              )}
               <button
                 onClick={() => controlGame(gameStats.gameStatus === 'PAUSED' ? 'resume' : 'pause')}
                 className="control-button warning"
-                disabled={gameStats.gameStatus === 'FINISHED'}
+                disabled={gameStats.gameStatus === 'FINISHED' || gameStats.gameStatus === 'WAITING'}
               >
                 {gameStats.gameStatus === 'PAUSED' ? <PlayIcon /> : <PauseIcon />}
                 {gameStats.gameStatus === 'PAUSED' ? 'Resume' : 'Pause'}
@@ -498,7 +548,7 @@ const GameMonitor: React.FC = () => {
                     .sort((a, b) => b.score - a.score)
                     .slice(0, 5)
                     .map((player, index) => (
-                      <div key={player.id} className="mini-player">
+                      <div key={`mini-player-${player.id || player.userId || index}`} className="mini-player">
                         <span className="player-rank">#{index + 1}</span>
                         <span className="player-name">{player.firstName} {player.lastName}</span>
                         <span className="player-score">{player.score}</span>
@@ -565,9 +615,9 @@ const GameMonitor: React.FC = () => {
         {activeTab === 'players' && (
           <div className="players-content">
             <div className="players-grid">
-              {players.map(player => (
+              {players.map((player, index) => (
                 <motion.div
-                  key={player.id}
+                  key={`player-card-${player.id || player.userId || index}`}
                   layout
                   className="player-card"
                   style={{ borderLeftColor: getPlayerStatusColor(player) }}
@@ -744,8 +794,8 @@ const GameMonitor: React.FC = () => {
                 <div className="analytics-card">
                   <h3>Need Support</h3>
                   <div className="struggling-players">
-                    {liveStats.strugglingPlayers.map(player => (
-                      <div key={player.id} className="struggling-player">
+                    {liveStats.strugglingPlayers.map((player, index) => (
+                      <div key={`struggling-player-${player.id || player.userId || index}`} className="struggling-player">
                         <span className="player-name">{player.firstName} {player.lastName}</span>
                         <span className="player-accuracy">
                           {player.correctAnswers + player.incorrectAnswers > 0 

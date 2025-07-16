@@ -98,18 +98,23 @@ const Dashboard: React.FC = () => {
         },
         body: JSON.stringify({
           quizId,
-          gameMode: 'LIVE',
+          mode: 'LIVE',
           settings: {
-            showAnswers: true,
-            randomizeQuestions: false
+            showCorrectAnswers: true,
+            randomizeQuestions: false,
+            showLeaderboard: true,
+            autoAdvance: false,
+            enablePowerUps: false
           }
         })
       });
 
       if (response.ok) {
         const data = await response.json();
+        const gameId = data.data.game.id;
         const gamePin = data.data.game.pin;
-        window.open(`/game/host/${gamePin}`, '_blank');
+        toast.success(`Game created! PIN: ${gamePin}`);
+        window.open(`/game/${gameId}/monitor`, '_blank');
       }
     } catch (error) {
       console.error('Failed to start game:', error);
