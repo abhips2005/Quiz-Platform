@@ -1,11 +1,11 @@
 import express from 'express';
 import { supabaseAuthMiddleware } from '../middleware/supabaseAuth';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../index';
 import { io } from '../index';
 import { z } from 'zod';
 
 const router = express.Router();
-const prisma = new PrismaClient();
+
 
 // Generate random game PIN (6 digits)
 const generateGamePin = (): string => {

@@ -1,12 +1,11 @@
 import { Router, Response } from 'express';
 import { z } from 'zod';
-import { PrismaClient } from '@prisma/client';
 import { validateBody, validateQuery } from '../middleware/validation';
 import { AuthRequest, requireAdmin } from '../middleware/supabaseAuth';
 import { asyncHandler, createError } from '../middleware/errorHandler';
+import { prisma } from '../index';
 
 const router = Router();
-const prisma = new PrismaClient();
 
 // Get user profile
 router.get('/profile/:id', asyncHandler(async (req: AuthRequest, res: Response) => {

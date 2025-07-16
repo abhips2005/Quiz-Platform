@@ -1,12 +1,12 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../index';
 import { validateBody, validateQuery } from '../middleware/validation';
 import { AuthRequest, supabaseAuthMiddleware, requireTeacher } from '../middleware/supabaseAuth';
 import { asyncHandler, createError } from '../middleware/errorHandler';
 
 const router = Router();
-const prisma = new PrismaClient();
+
 
 // Validation schemas
 const createQuestionSchema = z.object({

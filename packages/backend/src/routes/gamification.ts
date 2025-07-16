@@ -1,9 +1,9 @@
 import express from 'express';
 import { supabaseAuthMiddleware } from '../middleware/supabaseAuth';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../index';
 
 const router = express.Router();
-const prisma = new PrismaClient();
+
 
 // Avatar Management Routes
 router.get('/avatars', supabaseAuthMiddleware, async (req, res) => {

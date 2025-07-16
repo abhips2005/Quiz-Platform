@@ -1,9 +1,7 @@
 import { Request, Response, NextFunction, RequestHandler } from 'express'
-import { PrismaClient } from '@prisma/client'
 import { supabaseAdmin } from '../config/supabase'
 import { createError } from './errorHandler'
-
-const prisma = new PrismaClient()
+import { prisma } from '../index'
 
 // Define the database user type to match what we return
 export interface DbUser {

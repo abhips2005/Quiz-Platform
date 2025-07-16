@@ -1,9 +1,8 @@
 import { Server as SocketServer, Socket } from 'socket.io';
 import { supabaseAdmin } from '../config/supabase'; // Changed from Firebase
-import { PrismaClient, GameStatus, PlayerStatus } from '@prisma/client';
+import { GameStatus, PlayerStatus } from '@prisma/client';
 import { GameEvent, GameEventType } from '@quizizz-platform/shared';
-
-const prisma = new PrismaClient();
+import { prisma } from '../index';
 
 interface AuthenticatedSocket extends Socket {
   userId?: string;

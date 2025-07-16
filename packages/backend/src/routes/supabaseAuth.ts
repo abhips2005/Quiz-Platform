@@ -1,13 +1,13 @@
 import { Router, Response } from 'express'
 import { z } from 'zod'
-import { PrismaClient, UserRole } from '@prisma/client'
+import { UserRole } from '@prisma/client'
 import { validateBody } from '../middleware/validation'
 import { supabaseAuthMiddleware, AuthRequest, optionalSupabaseAuth, AuthRequestHandler, DbUser } from '../middleware/supabaseAuth'
 import { asyncHandler, createError } from '../middleware/errorHandler'
 import { supabaseAdmin } from '../config/supabase'
+import { prisma } from '../index'
 
 const router = Router()
-const prisma = new PrismaClient()
 
 // Validation schemas
 const syncUserSchema = z.object({

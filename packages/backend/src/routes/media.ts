@@ -2,12 +2,12 @@ import express from 'express';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../index';
 import { supabaseAuthMiddleware } from '../middleware/supabaseAuth';
 import { z } from 'zod';
 
 const router = express.Router();
-const prisma = new PrismaClient();
+
 
 // Ensure uploads directory exists
 const uploadsDir = path.join(process.cwd(), 'uploads');

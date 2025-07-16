@@ -1,11 +1,14 @@
 import express from 'express';
-import { PrismaClient } from '@prisma/client';
-import { supabaseAuthMiddleware } from '../middleware/supabaseAuth';
+import { Router } from 'express'
+import { z } from 'zod'
+import { validateBody } from '../middleware/validation'
+import { supabaseAuthMiddleware, AuthRequest } from '../middleware/supabaseAuth'
+import { asyncHandler, createError } from '../middleware/errorHandler'
+import { prisma } from '../index'
 import PDFDocument from 'pdfkit';
 import { Parser } from 'json2csv';
 
-const router = express.Router();
-const prisma = new PrismaClient();
+const router = Router();
 
 // Get dashboard analytics summary
 router.get('/dashboard', supabaseAuthMiddleware, async (req, res) => {

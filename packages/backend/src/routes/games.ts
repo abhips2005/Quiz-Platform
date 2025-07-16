@@ -1,12 +1,12 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../index';
 import { validateBody } from '../middleware/validation';
 import { AuthRequest, requireTeacher } from '../middleware/supabaseAuth';
 import { asyncHandler, createError } from '../middleware/errorHandler';
 
 const router = Router();
-const prisma = new PrismaClient();
+
 
 // Generate random game PIN
 function generateGamePin(): string {

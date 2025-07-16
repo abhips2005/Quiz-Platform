@@ -1,12 +1,11 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { PrismaClient } from '@prisma/client';
 import { validateBody, validateQuery } from '../middleware/validation';
 import { AuthRequest, requireTeacher } from '../middleware/supabaseAuth';
 import { asyncHandler, createError } from '../middleware/errorHandler';
+import { prisma } from '../index';
 
 const router = Router();
-const prisma = new PrismaClient();
 
 // Create Quiz
 const createQuizSchema = z.object({
@@ -130,20 +129,21 @@ router.get('/', validateQuery(searchQuizzesSchema), asyncHandler(async (req: Aut
   const { query, subject, grade, tags, visibility, creatorId, page, limit, sortBy, sortOrder } = req.query as any;
   const skip = (page - 1) * limit;
 
-  const where: any = {
-    status: 'PUBLISHED'
-  };
+  const where: any = {};
 
   // Filter by visibility and user access
   if (!req.user) {
+    // Anonymous users: only public published quizzes
+    where.status = 'PUBLISHED';
     where.visibility = 'PUBLIC';
   } else if (visibility) {
     where.visibility = visibility;
+    where.status = 'PUBLISHED';
   } else {
-    // Show public quizzes and user's own quizzes
+    // Logged-in users: show public published quizzes + all their own quizzes (draft & published)
     where.OR = [
-      { visibility: 'PUBLIC' },
-      { creatorId: req.user.id }
+      { visibility: 'PUBLIC', status: 'PUBLISHED' },
+      { creatorId: req.user.id } // User's own quizzes (any status)
     ];
   }
 
