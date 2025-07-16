@@ -293,7 +293,6 @@ router.get('/:gameId', supabaseAuthMiddleware, async (req, res) => {
           include: {
             questions: {
               include: {
-                questionOptions: true,
                 media: true
               },
               orderBy: { order: 'asc' }

@@ -264,7 +264,7 @@ export const initializeSocketHandlers = (io: SocketServer) => {
             id: questionId,
             quiz: { gameSessions: { some: { id: gameId } } }
           },
-          include: { questionOptions: true }
+          include: { media: true }
         });
 
         if (!question) {

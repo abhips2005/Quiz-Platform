@@ -24,6 +24,11 @@ export const validateRequest = (schema: {
       next();
     } catch (error) {
       if (error instanceof ZodError) {
+        console.error('Validation error:', {
+          errors: error.errors,
+          body: req.body,
+          path: req.path
+        });
         next(error);
       } else {
         next(createError('Validation failed', 400));

@@ -137,9 +137,6 @@ router.get('/game/:gameId', supabaseAuthMiddleware, async (req, res) => {
         quiz: {
           include: {
             questions: {
-              include: {
-                options: true
-              },
               orderBy: { order: 'asc' }
             }
           }
@@ -197,17 +194,23 @@ router.get('/game/:gameId', supabaseAuthMiddleware, async (req, res) => {
         // Option distribution for MCQ questions
         let optionDistribution: any = {};
         if (question.type === 'MULTIPLE_CHOICE' || question.type === 'TRUE_FALSE') {
-          optionDistribution = question.options.reduce((dist: any, option) => {
-            const selectedCount = answers.filter(a => 
-              a.selectedOptions.includes(option.id)
-            ).length;
-            dist[option.text] = {
-              count: selectedCount,
-              percentage: totalAnswers > 0 ? (selectedCount / totalAnswers) * 100 : 0,
-              isCorrect: option.isCorrect
-            };
-            return dist;
-          }, {});
+          try {
+            const options = question.options as any[] || [];
+            optionDistribution = options.reduce((dist: any, option) => {
+              const selectedCount = answers.filter(a => 
+                a.selectedOptions && a.selectedOptions.includes(option.text)
+              ).length;
+              dist[option.text] = {
+                count: selectedCount,
+                percentage: totalAnswers > 0 ? (selectedCount / totalAnswers) * 100 : 0,
+                isCorrect: option.isCorrect
+              };
+              return dist;
+            }, {});
+          } catch (error) {
+            console.log('Error processing option distribution:', error);
+            optionDistribution = {};
+          }
         }
 
         return {
@@ -297,13 +300,10 @@ router.get('/quiz/:quizId', supabaseAuthMiddleware, async (req, res) => {
     const quiz = await prisma.quiz.findFirst({
       where: { 
         id: quizId, 
-        createdBy: userId 
+        creatorId: userId 
       },
       include: {
         questions: {
-          include: {
-            options: true
-          },
           orderBy: { order: 'asc' }
         },
         gameSessions: {
@@ -641,7 +641,7 @@ async function getGamesPerDay(userId: string, startDate: Date) {
 
 async function getPopularQuizzes(userId: string, startDate: Date) {
   const quizzes = await prisma.quiz.findMany({
-    where: { createdBy: userId },
+    where: { creatorId: userId },
     include: {
       gameSessions: {
         where: { createdAt: { gte: startDate } },

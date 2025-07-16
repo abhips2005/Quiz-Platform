@@ -21,11 +21,24 @@ interface QuizFormData {
   title: string;
   description: string;
   subject: string;
-  difficulty: 'EASY' | 'MEDIUM' | 'HARD';
-  timePerQuestion: number;
-  showAnswers: boolean;
-  randomizeQuestions: boolean;
-  isPublic: boolean;
+  grade?: string;
+  tags: string[];
+  visibility: 'PUBLIC' | 'PRIVATE' | 'SCHOOL_ONLY' | 'CLASS_ONLY';
+  settings: {
+    randomizeQuestions: boolean;
+    randomizeOptions: boolean;
+    showCorrectAnswers: boolean;
+    showAnswerExplanations: boolean;
+    allowReviewAnswers: boolean;
+    showLeaderboard: boolean;
+    enablePowerUps: boolean;
+    musicEnabled: boolean;
+    pointsPerQuestion: number;
+    timeMultiplier: number;
+    negativeMarking: boolean;
+    showProgressBar: boolean;
+    exitScreenRequired: boolean;
+  };
 }
 
 interface QuestionFormData {
@@ -61,11 +74,24 @@ const QuizCreator: React.FC = () => {
     title: '',
     description: '',
     subject: '',
-    difficulty: 'MEDIUM',
-    timePerQuestion: 30,
-    showAnswers: true,
-    randomizeQuestions: false,
-    isPublic: false,
+    grade: '',
+    tags: [],
+    visibility: 'PRIVATE',
+    settings: {
+      randomizeQuestions: false,
+      randomizeOptions: false,
+      showCorrectAnswers: true,
+      showAnswerExplanations: true,
+      allowReviewAnswers: true,
+      showLeaderboard: true,
+      enablePowerUps: false,
+      musicEnabled: false,
+      pointsPerQuestion: 10,
+      timeMultiplier: 1,
+      negativeMarking: false,
+      showProgressBar: true,
+      exitScreenRequired: false,
+    },
   });
 
   const [questions, setQuestions] = useState<QuestionFormData[]>([]);
@@ -101,16 +127,29 @@ const QuizCreator: React.FC = () => {
           title: quizData.title,
           description: quizData.description || '',
           subject: quizData.subject || '',
-          difficulty: quizData.difficulty,
-          timePerQuestion: quizData.timePerQuestion,
-          showAnswers: quizData.showAnswers,
-          randomizeQuestions: quizData.randomizeQuestions,
-          isPublic: quizData.isPublic,
+          grade: quizData.grade || '',
+          tags: quizData.tags || [],
+          visibility: quizData.visibility || 'PRIVATE',
+          settings: quizData.settings || {
+            randomizeQuestions: false,
+            randomizeOptions: false,
+            showCorrectAnswers: true,
+            showAnswerExplanations: true,
+            allowReviewAnswers: true,
+            showLeaderboard: true,
+            enablePowerUps: false,
+            musicEnabled: false,
+            pointsPerQuestion: 10,
+            timeMultiplier: 1,
+            negativeMarking: false,
+            showProgressBar: true,
+            exitScreenRequired: false,
+          },
         });
 
         const formattedQuestions: QuestionFormData[] = quizData.questions.map((q: Question) => ({
           type: q.type,
-          question: q.title,
+          question: q.question || q.title || '', // Use q.question (new field) or fallback to q.title (legacy)
           explanation: q.explanation,
           points: q.points,
           timeLimit: q.timeLimit,
@@ -139,8 +178,8 @@ const QuizCreator: React.FC = () => {
     const newQuestion: QuestionFormData = {
       type: QuestionType.MULTIPLE_CHOICE,
       question: '',
-      points: 1,
-      timeLimit: quiz.timePerQuestion,
+      points: quiz.settings.pointsPerQuestion,
+      timeLimit: 30,
       options: [
         { text: '', isCorrect: true },
         { text: '', isCorrect: false },
@@ -245,12 +284,49 @@ const QuizCreator: React.FC = () => {
     try {
       const payload = {
         ...quiz,
-        questions: questions.map(q => ({
-          ...q,
-          options: q.options.length > 0 ? q.options : undefined,
-        })),
+        questions: questions.map(q => {
+          const baseQuestion: any = {
+            type: q.type,
+            question: q.question,
+            explanation: q.explanation,
+            points: q.points,
+            timeLimit: q.timeLimit,
+          };
+
+          // Add media only if it exists
+          if (q.media && q.media.id) {
+            baseQuestion.media = q.media;
+          }
+
+          // Handle different question types
+          switch (q.type) {
+            case 'MULTIPLE_CHOICE':
+            case 'CHECKBOX':
+              if (q.options && q.options.length > 0) {
+                baseQuestion.options = q.options;
+              }
+              break;
+            
+            case 'TRUE_FALSE':
+              baseQuestion.correctAnswer = q.correctAnswer;
+              break;
+            
+            case 'SHORT_ANSWER':
+              baseQuestion.acceptedAnswers = q.acceptedAnswers || [];
+              break;
+            
+            case 'FILL_IN_BLANK':
+              baseQuestion.correctAnswer = q.correctAnswer;
+              break;
+          }
+
+          return baseQuestion;
+        }),
         status: publish ? 'PUBLISHED' : 'DRAFT',
       };
+
+      // Debug: Log the payload being sent
+      console.log('Sending payload:', JSON.stringify(payload, null, 2));
 
       const token = await getAccessToken();
       if (!token) {
@@ -282,6 +358,7 @@ const QuizCreator: React.FC = () => {
         navigate('/quizzes');
       } else {
         const error = await response.json();
+        console.error('Backend error response:', error);
         toast.error(error.message || 'Failed to save quiz');
       }
     } catch (error) {
@@ -577,55 +654,64 @@ const QuizCreator: React.FC = () => {
                 />
               </div>
               <div className="form-group">
-                <label>Difficulty</label>
-                <select
-                  value={quiz.difficulty}
-                  onChange={(e) => handleQuizDataChange('difficulty', e.target.value)}
-                  className="form-select"
-                >
-                  <option value="EASY">Easy</option>
-                  <option value="MEDIUM">Medium</option>
-                  <option value="HARD">Hard</option>
-                </select>
+                <label>Grade Level</label>
+                <input
+                  type="text"
+                  value={quiz.grade || ''}
+                  onChange={(e) => handleQuizDataChange('grade', e.target.value)}
+                  placeholder="e.g., Grade 10, College"
+                  className="form-input"
+                />
               </div>
             </div>
 
             <div className="form-group">
-              <label>Default Time Per Question (seconds)</label>
-              <input
-                type="number"
-                min="5"
-                max="300"
-                value={quiz.timePerQuestion}
-                onChange={(e) => handleQuizDataChange('timePerQuestion', parseInt(e.target.value))}
-                className="form-input"
-              />
+              <label>Visibility</label>
+              <select
+                value={quiz.visibility}
+                onChange={(e) => handleQuizDataChange('visibility', e.target.value)}
+                className="form-select"
+              >
+                <option value="PRIVATE">Private</option>
+                <option value="PUBLIC">Public</option>
+                <option value="SCHOOL_ONLY">School Only</option>
+                <option value="CLASS_ONLY">Class Only</option>
+              </select>
             </div>
 
             <div className="quiz-settings">
               <label className="checkbox-label">
                 <input
                   type="checkbox"
-                  checked={quiz.showAnswers}
-                  onChange={(e) => handleQuizDataChange('showAnswers', e.target.checked)}
+                  checked={quiz.settings.showCorrectAnswers}
+                  onChange={(e) => setQuiz(prev => ({
+                    ...prev,
+                    settings: { ...prev.settings, showCorrectAnswers: e.target.checked }
+                  }))}
                 />
                 Show correct answers after each question
               </label>
               <label className="checkbox-label">
                 <input
                   type="checkbox"
-                  checked={quiz.randomizeQuestions}
-                  onChange={(e) => handleQuizDataChange('randomizeQuestions', e.target.checked)}
+                  checked={quiz.settings.randomizeQuestions}
+                  onChange={(e) => setQuiz(prev => ({
+                    ...prev,
+                    settings: { ...prev.settings, randomizeQuestions: e.target.checked }
+                  }))}
                 />
                 Randomize question order
               </label>
               <label className="checkbox-label">
                 <input
                   type="checkbox"
-                  checked={quiz.isPublic}
-                  onChange={(e) => handleQuizDataChange('isPublic', e.target.checked)}
+                  checked={quiz.settings.showLeaderboard}
+                  onChange={(e) => setQuiz(prev => ({
+                    ...prev,
+                    settings: { ...prev.settings, showLeaderboard: e.target.checked }
+                  }))}
                 />
-                Make quiz public
+                Show leaderboard
               </label>
             </div>
           </div>
