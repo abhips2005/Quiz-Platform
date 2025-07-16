@@ -1,288 +1,310 @@
-# Quizzz Platform 🎯
+# 🎯 Quizzz Platform
 
-A modern, real-time quiz and learning engagement platform inspired by Quizizz. Built with React, Node.js, Socket.io, and PostgreSQL.
+A modern, real-time quiz platform built with React, Node.js, and Supabase. Create engaging quizzes, host live quiz sessions, and analyze performance with detailed analytics.
+
+![Quiz Platform](https://img.shields.io/badge/Status-Active-green)
+![TypeScript](https://img.shields.io/badge/TypeScript-007ACC?logo=typescript&logoColor=white)
+![React](https://img.shields.io/badge/React-20232A?logo=react&logoColor=61DAFB)
+![Node.js](https://img.shields.io/badge/Node.js-43853D?logo=node.js&logoColor=white)
+![Supabase](https://img.shields.io/badge/Supabase-3ECF8E?logo=supabase&logoColor=white)
 
 ## ✨ Features
 
-### 🎮 Core Functionality
-- **Real-time Quiz Gaming**: Live multiplayer quiz sessions with instant feedback
-- **Multiple Question Types**: MCQ, True/False, Checkbox, Short Answer, Fill-in-the-blank
-- **Interactive Learning**: Gamified experience with points, streaks, and leaderboards
-- **Media Support**: Images, audio, and video in questions and answers
+### 🏫 Quiz Management
+- **Quiz Creator**: Intuitive drag-and-drop quiz builder
+- **Question Bank**: Reusable question library with categorization
+- **Media Support**: Images, audio, and video in questions
+- **Math Rendering**: LaTeX support for mathematical expressions
+- **Multiple Question Types**: Multiple choice, true/false, short answer, fill-in-blank
 
-### 👥 User Management
-- **Role-based System**: Students, Teachers, and Admins
-- **Authentication**: Email/password with JWT, Google/Microsoft SSO ready
-- **Profile Management**: Avatars, grades, subjects, and preferences
-- **Class Management**: Create classes, invite students, manage groups
+### 🎮 Live Gaming
+- **Real-time Sessions**: Live quiz sessions with WebSocket support
+- **Game Modes**: Classic, Speed, and Team modes
+- **Live Monitoring**: Real-time participant tracking and analytics
+- **Interactive Features**: Live leaderboards and instant feedback
 
-### 🎯 Quiz Creation & Management
-- **Intuitive Quiz Builder**: Drag-and-drop question creation
-- **Question Bank**: Reuse questions across quizzes
-- **Collaboration**: Co-edit quizzes with other teachers
-- **Import/Export**: Support for Excel/CSV and Google Forms
-- **Templates**: Pre-built quiz templates for quick creation
+### 📊 Analytics & Insights
+- **Performance Analytics**: Detailed quiz and participant analytics
+- **Progress Tracking**: Individual and group progress monitoring
+- **Data Visualization**: Charts and graphs for performance insights
+- **Export Functionality**: Export results and analytics data
 
-### 🏆 Gamification & Engagement
-- **Power-ups**: 50/50, Time Freeze, Double Points, Skip Question
-- **Achievements**: Badges for various accomplishments
-- **Streaks & XP**: Continuous engagement rewards
-- **Customization**: Themes, memes, sound effects
-- **Avatars**: Personalized player representations
+### 🎨 Gamification
+- **XP System**: Experience points and leveling
+- **Achievements**: Unlock achievements and badges
+- **Leaderboards**: Global and local leaderboards
+- **Avatars**: Customizable user avatars
+- **Power-ups**: Special abilities during quizzes
 
-### 📊 Analytics & Reporting
-- **Real-time Analytics**: Live performance tracking during games
-- **Detailed Reports**: Student progress, question difficulty analysis
-- **Export Options**: PDF, CSV, Excel formats
-- **Learning Insights**: AI-powered recommendations
-- **Class Analytics**: Teacher dashboard with student performance
-
-### 🎪 Game Modes
-- **Live Mode**: Teacher-hosted real-time sessions
-- **Homework Mode**: Self-paced assignments with deadlines
-- **Practice Mode**: Individual study sessions
-- **Tournament Mode**: Competitive multi-round games
+### 🔐 Authentication & Security
+- **Supabase Auth**: Secure authentication with email/password
+- **Role-based Access**: Student, Teacher, and Admin roles
+- **Data Protection**: Secure data handling and privacy
+- **Session Management**: Secure session handling
 
 ## 🏗️ Architecture
 
-### Tech Stack
-- **Frontend**: React 19, TypeScript, Tailwind CSS, Framer Motion
-- **Backend**: Node.js, Express, TypeScript, Socket.io
-- **Database**: PostgreSQL with Prisma ORM
-- **Real-time**: Socket.io for live game synchronization
-- **Authentication**: JWT with refresh tokens
-- **File Storage**: Local storage with S3 support
-- **State Management**: Zustand for client state
+This is a monorepo project with three main packages:
 
-### Project Structure
 ```
-Quizzz Platform/
+quizzz-platform/
 ├── packages/
-│   ├── frontend/           # React app
-│   │   ├── src/
-│   │   │   ├── components/ # Reusable UI components
-│   │   │   ├── pages/      # Route components
-│   │   │   ├── hooks/      # Custom React hooks
-│   │   │   ├── stores/     # Zustand stores
-│   │   │   ├── services/   # API services
-│   │   │   └── utils/      # Helper functions
-│   │   └── public/         # Static assets
-│   ├── backend/            # Node.js API server
-│   │   ├── src/
-│   │   │   ├── controllers/# Route handlers
-│   │   │   ├── middleware/ # Express middleware
-│   │   │   ├── routes/     # API routes
-│   │   │   ├── services/   # Business logic
-│   │   │   ├── sockets/    # Socket.io handlers
-│   │   │   └── utils/      # Helper functions
-│   │   ├── prisma/         # Database schema
-│   │   └── uploads/        # File uploads
-│   └── shared/             # Shared types & utilities
-│       └── src/types/      # TypeScript definitions
-├── package.json            # Root package.json
-└── README.md              # This file
+│   ├── frontend/          # React + TypeScript + Vite
+│   ├── backend/           # Node.js + Express + TypeScript
+│   └── shared/            # Shared types and utilities
+├── scripts/               # Setup and utility scripts
+└── docs/                  # Documentation
 ```
+
+### Technology Stack
+
+**Frontend:**
+- React 18 with TypeScript
+- Vite for build tooling
+- React Router for navigation
+- Socket.io Client for real-time features
+- Chart.js for analytics visualization
+- KaTeX for math rendering
+- Tailwind CSS for styling
+
+**Backend:**
+- Node.js with Express and TypeScript
+- Prisma ORM with PostgreSQL
+- Socket.io for real-time communication
+- Supabase for authentication
+- File upload handling
+- Comprehensive error handling
+
+**Database:**
+- PostgreSQL (via Supabase)
+- Prisma ORM for database operations
+- Migrations for schema management
 
 ## 🚀 Quick Start
 
 ### Prerequisites
+
 - Node.js 18+ and npm
-- PostgreSQL 14+
+- PostgreSQL database (or Supabase account)
 - Git
 
-### Installation
+### 1. Clone the Repository
 
-1. **Clone the repository**
-   ```bash
-   git clone <repository-url>
-   cd "Quizzz Platform"
-   ```
+```bash
+git clone https://github.com/yourusername/quizzz-platform.git
+cd quizzz-platform
+```
 
-2. **Install dependencies**
-   ```bash
-   npm install
-   cd packages/frontend && npm install
-   cd ../backend && npm install
-   cd ../shared && npm install
-   cd ../..
-   ```
+### 2. Install Dependencies
 
-3. **Set up environment variables**
-   ```bash
-   # Backend environment
-   cd packages/backend
-   cp .env.example .env
-   # Edit .env with your database URL and JWT secrets
-   ```
+```bash
+npm install
+```
 
-4. **Set up the database**
-   ```bash
-   cd packages/backend
-   npx prisma generate
-   npx prisma db push
-   # Optional: seed with sample data
-   npm run db:seed
-   ```
+### 3. Environment Setup
 
-5. **Start the development servers**
-   ```bash
-   # From project root
-   npm run dev
-   ```
+Create environment files for both frontend and backend:
 
-   This starts both frontend (localhost:3000) and backend (localhost:5000) servers.
-
-### Environment Variables
-
-Create `.env` file in `packages/backend/`:
-
+**Backend (.env):**
 ```env
 # Database
-DATABASE_URL="postgresql://username:password@localhost:5432/quizzz_platform"
+DATABASE_URL="postgresql://username:password@localhost:5432/quizzz_db"
 
-# JWT
-JWT_SECRET="your-super-secret-jwt-key-here"
-JWT_EXPIRES_IN="7d"
-REFRESH_TOKEN_SECRET="your-refresh-token-secret-here"
-REFRESH_TOKEN_EXPIRES_IN="30d"
+# Supabase
+SUPABASE_URL="your-supabase-url"
+SUPABASE_ANON_KEY="your-supabase-anon-key"
+SUPABASE_SERVICE_ROLE_KEY="your-supabase-service-key"
 
 # Server
 PORT=5000
+JWT_SECRET="your-jwt-secret"
 NODE_ENV="development"
-CORS_ORIGIN="http://localhost:3000"
-
-# Optional: Email, OAuth, S3, Stripe configurations
 ```
 
-## 🎮 How to Use
+**Frontend (.env):**
+```env
+VITE_API_URL="http://localhost:5000"
+VITE_SUPABASE_URL="your-supabase-url"
+VITE_SUPABASE_ANON_KEY="your-supabase-anon-key"
+```
 
-### For Teachers
+### 4. Database Setup
 
-1. **Create Account**: Sign up as a teacher
-2. **Build Quiz**: Use the quiz builder to create questions
-3. **Start Game**: Generate a PIN and share with students
-4. **Monitor Live**: Watch real-time participation and results
-5. **Review Analytics**: Analyze student performance and learning gaps
+```bash
+# Generate Prisma client
+cd packages/backend
+npx prisma generate
+
+# Run database migrations
+npx prisma migrate dev
+
+# Seed the database (optional)
+npx prisma db seed
+```
+
+### 5. Start Development Servers
+
+```bash
+# Start all services (from root directory)
+npm run dev
+
+# Or start individually:
+npm run dev:frontend   # Frontend on http://localhost:5173
+npm run dev:backend    # Backend on http://localhost:5000
+npm run dev:shared     # Shared package watcher
+```
+
+## 📖 Usage
+
+### For Teachers/Educators
+
+1. **Register** as a teacher account
+2. **Create Quizzes** using the intuitive quiz builder
+3. **Host Live Sessions** with real-time participant interaction
+4. **Analyze Results** with comprehensive analytics
+5. **Manage Classes** and track student progress
 
 ### For Students
 
-1. **Join Game**: Enter the 6-digit PIN shared by teacher
-2. **Play Quiz**: Answer questions within time limits
-3. **Compete**: See live leaderboard and use power-ups
-4. **Learn**: Review correct answers and explanations
-5. **Track Progress**: Monitor your improvement over time
+1. **Register** with a student account
+2. **Join Quiz Sessions** using room codes
+3. **Participate** in live quizzes with real-time feedback
+4. **Track Progress** and view personal analytics
+5. **Compete** on leaderboards and earn achievements
 
-## 🔧 Development
+### For Administrators
+
+1. **Manage Users** and permissions
+2. **Monitor Platform** usage and performance
+3. **Configure Settings** and platform features
+4. **Access Analytics** across all users and content
+
+## 🛠️ Development
+
+### Project Structure
+
+```
+packages/frontend/src/
+├── components/          # Reusable UI components
+├── pages/              # Route components
+├── contexts/           # React contexts (auth, etc.)
+├── services/           # API service functions
+├── hooks/              # Custom React hooks
+└── utils/              # Utility functions
+
+packages/backend/src/
+├── routes/             # API route handlers
+├── middleware/         # Express middleware
+├── services/           # Business logic services
+├── config/             # Configuration files
+└── utils/              # Backend utilities
+
+packages/shared/src/
+├── types/              # TypeScript type definitions
+└── utils/              # Shared utility functions
+```
 
 ### Available Scripts
 
-From project root:
-- `npm run dev` - Start both frontend and backend in development mode
-- `npm run build` - Build both applications for production
-- `npm run lint` - Run linting across all packages
-- `npm run test` - Run tests across all packages
+```bash
+# Development
+npm run dev                # Start all development servers
+npm run dev:frontend      # Start frontend only
+npm run dev:backend       # Start backend only
 
-Backend specific:
-- `npm run db:generate` - Generate Prisma client
-- `npm run db:push` - Push schema changes to database
-- `npm run db:migrate` - Run database migrations
-- `npm run db:studio` - Open Prisma Studio
-- `npm run db:seed` - Seed database with sample data
+# Building
+npm run build             # Build all packages
+npm run build:frontend    # Build frontend only
+npm run build:backend     # Build backend only
 
-### API Documentation
+# Testing
+npm run test              # Run all tests
+npm run test:frontend     # Test frontend only
+npm run test:backend      # Test backend only
 
-The API follows RESTful conventions with these main endpoints:
+# Database
+npm run db:migrate        # Run database migrations
+npm run db:reset          # Reset database
+npm run db:seed           # Seed database with sample data
 
-- **Authentication**: `/api/auth/*` - Login, register, token refresh
-- **Users**: `/api/users/*` - User management and profiles
-- **Quizzes**: `/api/quizzes/*` - Quiz creation and management
-- **Question Bank**: `/api/question-bank/*` - Reusable question library with tags and categories
-- **Games**: `/api/games/*` - Live game sessions
-- **Classes**: `/api/classes/*` - Class and student management
-- **Analytics**: `/api/analytics/*` - Performance data
-- **Uploads**: `/api/uploads/*` - File upload handling
+# Deployment
+npm run deploy            # Deploy to production
+```
 
-### WebSocket Events
+## 🚢 Deployment
 
-Real-time features use Socket.io with these key events:
+### Using Vercel (Frontend) + Railway (Backend)
 
-- `join_game` - Join a game session
-- `start_game` - Begin quiz (host only)
-- `submit_answer` - Submit answer to question
-- `next_question` - Advance to next question (host only)
-- `game_event` - Receive game state updates
+1. **Frontend (Vercel):**
+   ```bash
+   cd packages/frontend
+   vercel --prod
+   ```
 
-## 🎯 Implementation Status
+2. **Backend (Railway):**
+   ```bash
+   cd packages/backend
+   railway deploy
+   ```
 
-### ✅ Recently Completed Features
+### Using Docker
 
-#### Live Game Hosting System
-**Comprehensive Game Management Platform**
-- **Multi-Mode Support**: Live games, homework assignments, and practice sessions with full workflow support
-- **PIN-Based Joining**: Secure 6-digit PIN system for easy student access with collision prevention
-- **Game Creation Wizard**: Intuitive interface for teachers to create games with comprehensive settings
-- **Real-Time Management**: Live player tracking, game status monitoring, and automatic leaderboards
-- **Advanced Game Settings**: Question/answer randomization, time limits, retake options, and class integration
-- **Scalable Architecture**: Support for up to 500 concurrent players per live game session
+```bash
+# Build and run with Docker Compose
+docker-compose up --build
+```
 
-#### Media & Mathematics Support
-**Rich Content Creation Tools**
-- **Media Upload System**: Drag-and-drop support for images, audio, and video with organized file management
-- **LaTeX Math Rendering**: Full mathematical expression support using KaTeX with real-time preview
-- **File Security**: Comprehensive validation, size limits, and secure storage with automatic cleanup
-- **Math Integration**: Seamless LaTeX rendering in questions, answers, and previews using `$math$` and `$$math$$` syntax
-- **Media Library**: Organized file management with preview, metadata tracking, and deletion capabilities
+### Environment Variables for Production
 
-#### Question Bank System
-**Advanced Question Management & Reuse**
-- **Centralized Library**: Create and manage reusable questions with comprehensive metadata (tags, categories, subjects, difficulty)
-- **Smart Search & Filtering**: Advanced filtering system with real-time search across all question attributes
-- **Usage Analytics**: Track question usage across quizzes with detailed performance statistics
-- **Bulk Operations**: Efficient multi-question management with bulk actions and operations
-- **Permission System**: Private/public question sharing with usage tracking and analytics
-- **Seamless Integration**: Direct integration with quiz creator for immediate question reuse
-
-### 🚧 In Development
-- **Scoring System**: Timer-based scoring with speed bonuses and accuracy tracking
-- **Student Game Interface**: Animated question flow with real-time feedback and visual effects
-- **Teacher Dashboard**: Live game monitoring with real-time analytics and controls
-- **Advanced Analytics**: Detailed performance reports with exportable data (CSV, PDF)
-- **Gamification Features**: Power-ups, achievements, badges, and XP system
+Update your production environment variables:
+- Set `NODE_ENV=production`
+- Configure production database URLs
+- Set up proper CORS origins
+- Configure secure session secrets
 
 ## 🤝 Contributing
 
+We welcome contributions! Please see our [Contributing Guidelines](CONTRIBUTING.md) for details.
+
+### Development Workflow
+
 1. Fork the repository
 2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+3. Make your changes
+4. Run tests (`npm run test`)
+5. Commit your changes (`git commit -m 'Add amazing feature'`)
+6. Push to the branch (`git push origin feature/amazing-feature`)
+7. Open a Pull Request
 
 ## 📝 License
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-## 🆘 Support
+## 🙏 Acknowledgments
+
+- **Supabase** for providing excellent authentication and database services
+- **Prisma** for the amazing ORM experience
+- **React** and **TypeScript** communities for excellent tooling
+- **Socket.io** for real-time communication capabilities
+
+## 📞 Support
 
 If you encounter any issues or have questions:
 
-1. Check the [Issues](../../issues) page for existing solutions
-2. Create a new issue with detailed description
-3. Join our community discussions
+1. Check the [Issues](https://github.com/yourusername/quizzz-platform/issues) page
+2. Create a new issue with detailed information
+3. Join our [Discord Community](https://discord.gg/your-invite) for real-time help
 
-## 🚀 Deployment
+## 🗺️ Roadmap
 
-### Production Setup
-
-1. **Database**: Set up PostgreSQL database
-2. **Environment**: Configure production environment variables
-3. **Build**: Run `npm run build` to create production builds
-4. **Deploy**: Deploy backend to your preferred hosting (Railway, Heroku, AWS)
-5. **Frontend**: Deploy frontend to Vercel, Netlify, or CDN
-
-### Docker Support (Coming Soon)
-
-We're working on Docker configurations for easy deployment and development setup.
+- [ ] Mobile app (React Native)
+- [ ] Advanced analytics dashboard
+- [ ] Integration with learning management systems
+- [ ] AI-powered question generation
+- [ ] Voice-to-text question input
+- [ ] Multi-language support
+- [ ] Advanced gamification features
 
 ---
 
-**Built with ❤️ for educators and students worldwide** 
+**Built with ❤️ by the Quizzz Platform Team** 
