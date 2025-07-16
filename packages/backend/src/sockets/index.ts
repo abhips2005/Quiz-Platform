@@ -139,6 +139,8 @@ export const initializeSocketHandlers = (io: SocketServer) => {
           };
 
           socket.to(gameId).emit('game_event', playerJoinedEvent);
+          // Also notify the monitor
+          socket.to(`${gameId}_monitor`).emit('game_event', playerJoinedEvent);
         }
 
         // Join socket room
@@ -231,6 +233,8 @@ export const initializeSocketHandlers = (io: SocketServer) => {
         };
 
         io.to(gameId).emit('game_event', gameStartedEvent);
+        // Also notify the monitor
+        io.to(`${gameId}_monitor`).emit('game_event', gameStartedEvent);
 
         // Start first question
         await startQuestion(gameId, 0);

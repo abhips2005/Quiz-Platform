@@ -131,7 +131,11 @@ router.get('/:id', asyncHandler(async (req: AuthRequest, res) => {
           title: true,
           description: true,
           coverImage: true,
-          estimatedTime: true
+          estimatedTime: true,
+          questions: {
+            select: { id: true },
+            orderBy: { order: 'asc' }
+          }
         }
       },
       host: {
