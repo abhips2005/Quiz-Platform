@@ -43,6 +43,7 @@ const JoinGame: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [gameInfo, setGameInfo] = useState<GameInfo | null>(null);
   const [step, setStep] = useState<'enter-details' | 'waiting'>('enter-details');
+  const [socket, setSocket] = useState<Socket | null>(null);
 
   // Redirect to login if not authenticated
   useEffect(() => {
@@ -51,6 +52,15 @@ const JoinGame: React.FC = () => {
       navigate(`/login?redirect=${encodeURIComponent(currentUrl)}`);
     }
   }, [isInitialized, user, navigate, pinFromUrl]);
+
+  // Cleanup socket on unmount
+  useEffect(() => {
+    return () => {
+      if (socket) {
+        socket.disconnect();
+      }
+    };
+  }, [socket]);
 
   const handleInputChange = (field: keyof JoinFormData, value: string) => {
     setFormData(prev => ({
@@ -115,18 +125,19 @@ const JoinGame: React.FC = () => {
         
         // Connect to WebSocket and actually join the game
         const wsUrl = import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:5000';
-        const socket = io(wsUrl, {
+        const newSocket = io(wsUrl, {
           auth: { token }
         });
+        setSocket(newSocket);
         
-        socket.on('connect', () => {
-          socket.emit('join_game', {
+        newSocket.on('connect', () => {
+          newSocket.emit('join_game', {
             gameId: gameData.id,
             pin: formData.pin
           });
         });
 
-        socket.on('game_joined', (gameState: any) => {
+        newSocket.on('game_joined', (gameState: any) => {
           console.log('Game joined successfully:', gameState);
           
           const currentPlayer = gameState.players?.find((p: any) => p.userId === user.id) || 
@@ -158,13 +169,40 @@ const JoinGame: React.FC = () => {
             navigate(`/game/${gameState.id}/play`);
           }
           
-          socket.disconnect();
+          // Don't disconnect socket - keep it alive to listen for game events
         });
 
-        socket.on('error', (error: any) => {
+        // Listen for game events while waiting
+        newSocket.on('game_event', (event: any) => {
+          console.log('Game event received:', event);
+          
+          switch (event.type) {
+            case 'GAME_STARTED':
+              toast.success('Game is starting!');
+              navigate(`/game/${gameData.id}/play`);
+              break;
+            
+            case 'PLAYER_JOINED':
+              setGameInfo(prev => prev ? {
+                ...prev,
+                playerCount: prev.playerCount + 1
+              } : null);
+              break;
+              
+            case 'PLAYER_LEFT':
+              setGameInfo(prev => prev ? {
+                ...prev,
+                playerCount: Math.max(0, prev.playerCount - 1)
+              } : null);
+              break;
+          }
+        });
+
+        newSocket.on('error', (error: any) => {
           toast.error(error.message || 'Failed to join game');
           setLoading(false);
-          socket.disconnect();
+          newSocket.disconnect();
+          setSocket(null);
         });
       } else {
         const errorData = await response.json();
@@ -187,6 +225,10 @@ const JoinGame: React.FC = () => {
 
 
   const resetForm = () => {
+    if (socket) {
+      socket.disconnect();
+      setSocket(null);
+    }
     setFormData({ pin: '', playerName: user?.firstName || '' });
     setGameInfo(null);
     setStep('enter-details');
@@ -402,4 +444,4 @@ const JoinGame: React.FC = () => {
   );
 };
 
-export default JoinGame; 
+export default JoinGame;

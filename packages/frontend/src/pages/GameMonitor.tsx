@@ -548,7 +548,7 @@ const GameMonitor: React.FC = () => {
                     .sort((a, b) => b.score - a.score)
                     .slice(0, 5)
                     .map((player, index) => (
-                      <div key={`mini-player-${player.id || player.userId || index}`} className="mini-player">
+                      <div key={`mini-player-${player.id || player.username || index}`} className="mini-player">
                         <span className="player-rank">#{index + 1}</span>
                         <span className="player-name">{player.firstName} {player.lastName}</span>
                         <span className="player-score">{player.score}</span>
@@ -617,7 +617,7 @@ const GameMonitor: React.FC = () => {
             <div className="players-grid">
               {players.map((player, index) => (
                 <motion.div
-                  key={`player-card-${player.id || player.userId || index}`}
+                  key={`player-card-${player.id || player.userId || player.username || index}`}
                   layout
                   className="player-card"
                   style={{ borderLeftColor: getPlayerStatusColor(player) }}
@@ -795,7 +795,7 @@ const GameMonitor: React.FC = () => {
                   <h3>Need Support</h3>
                   <div className="struggling-players">
                     {liveStats.strugglingPlayers.map((player, index) => (
-                      <div key={`struggling-player-${player.id || player.userId || index}`} className="struggling-player">
+                      <div key={`struggling-player-${player.id || player.userId || player.username || index}`} className="struggling-player">
                         <span className="player-name">{player.firstName} {player.lastName}</span>
                         <span className="player-accuracy">
                           {player.correctAnswers + player.incorrectAnswers > 0 
@@ -815,4 +815,4 @@ const GameMonitor: React.FC = () => {
   );
 };
 
-export default GameMonitor; 
+export default GameMonitor;
